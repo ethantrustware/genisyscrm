@@ -6,12 +6,14 @@ import {
   ListChecks,
   Check,
   ArrowRight,
-  Calendar,
+  Calendar as CalendarIcon,
   X,
   Users,
+  Paperclip,
+  MessageSquare,
+  Trash2,
 } from "lucide-react";
 import { TopBar } from "@/components/layout/AppLayout";
-import { Chip } from "@/components/ui/chip";
 import { PersonAvatar } from "@/components/people/Avatar";
 import { KanbanBoard } from "@/components/tasks/KanbanBoard";
 import { DropdownPill } from "@/components/ui/dropdown-pill";
@@ -25,6 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -67,13 +70,61 @@ const VIEWS = [
 ] as const;
 type ViewId = (typeof VIEWS)[number]["id"];
 
-function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+/* =========================================================================
+ * Local task detail state — comments and attachments stored in memory.
+ * ========================================================================= */
+type Comment = { id: string; author: string; body: string; when: string };
+type Attachment = { id: string; name: string; size: string };
+type TaskExtras = { dueDate?: string; comments: Comment[]; attachments: Attachment[]; notes?: string };
+
+function emptyExtras(): TaskExtras {
+  return { comments: [], attachments: [] };
+}
+
+/* =========================================================================
+ * New task dialog — title, due date, notes, attachments.
+ * ========================================================================= */
+function NewTaskDialog({
+  open,
+  onOpenChange,
+  onCreate,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onCreate: (input: { title: string; dueDate: string; notes: string; attachments: Attachment[] }) => void;
+}) {
   const [title, setTitle] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [notes, setNotes] = useState("");
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+
+  const reset = () => {
+    setTitle("");
+    setDueDate("");
+    setNotes("");
+    setAttachments([]);
+  };
+
+  const submit = () => {
+    if (!title.trim()) return toast.error("Add a title");
+    onCreate({ title: title.trim(), dueDate, notes: notes.trim(), attachments });
+    toast.success(`Task added: ${title.trim()}`);
+    reset();
+    onOpenChange(false);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) reset();
+        onOpenChange(v);
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>New task</DialogTitle>
+          <DialogDescription>Capture what needs doing — add a due date, notes and attachments.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
@@ -83,29 +134,274 @@ function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
               placeholder="What needs doing?"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              autoFocus
             />
           </div>
           <div className="flex flex-col gap-1.5">
+            <Label htmlFor="due">Due date</Label>
+            <Input id="due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          </div>
+          <div className="flex flex-col gap-1.5">
             <Label htmlFor="notes">Notes</Label>
-            <Textarea id="notes" placeholder="Add context..." rows={3} />
+            <Textarea
+              id="notes"
+              placeholder="Add context, links, or instructions…"
+              rows={3}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>Attachments</Label>
+            {attachments.length > 0 && (
+              <ul className="flex flex-col gap-1.5">
+                {attachments.map((a) => (
+                  <li
+                    key={a.id}
+                    className="flex items-center justify-between rounded-lg border border-border-soft bg-surface-muted px-3 py-2 text-sm"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Paperclip className="h-3.5 w-3.5 text-muted-foreground" />
+                      {a.name}
+                      <span className="text-xs text-muted-foreground">· {a.size}</span>
+                    </span>
+                    <button
+                      onClick={() => setAttachments((prev) => prev.filter((x) => x.id !== a.id))}
+                      className="text-muted-foreground hover:text-foreground"
+                      aria-label="Remove attachment"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                const id = `a${Date.now()}`;
+                setAttachments((prev) => [
+                  ...prev,
+                  { id, name: `briefing-${prev.length + 1}.pdf`, size: "184 KB" },
+                ]);
+                toast.success("Attachment added");
+              }}
+              className="flex items-center gap-2 self-start rounded-full border border-dashed border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:border-primary/40 hover:bg-primary-soft hover:text-primary"
+            >
+              <Paperclip className="h-3.5 w-3.5" /> Attach file
+            </button>
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button
-            onClick={() => {
-              if (!title.trim()) {
-                toast.error("Add a title");
-                return;
-              }
-              toast.success(`Task added: ${title}`);
-              setTitle("");
-              onOpenChange(false);
-            }}
-          >
-            Create task
+          <Button onClick={submit}>Create task</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* =========================================================================
+ * Task detail dialog — view & edit metadata, comment thread, attachments.
+ * ========================================================================= */
+function TaskDetailDialog({
+  task,
+  extras,
+  onClose,
+  onUpdateExtras,
+  done,
+  onToggleDone,
+}: {
+  task: KanbanTask | null;
+  extras: TaskExtras;
+  onClose: () => void;
+  onUpdateExtras: (id: string, next: TaskExtras) => void;
+  done: boolean;
+  onToggleDone: (id: string) => void;
+}) {
+  const [comment, setComment] = useState("");
+
+  if (!task) return null;
+  const assignee = getPerson(task.assignee);
+
+  const addComment = () => {
+    if (!comment.trim()) return;
+    const next: TaskExtras = {
+      ...extras,
+      comments: [
+        ...extras.comments,
+        { id: `c${Date.now()}`, author: "Kenji Park", body: comment.trim(), when: "Just now" },
+      ],
+    };
+    onUpdateExtras(task.id, next);
+    setComment("");
+    toast.success("Comment added");
+  };
+
+  return (
+    <Dialog open={!!task} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-start gap-3">
+            <button
+              onClick={() => onToggleDone(task.id)}
+              className={cn(
+                "mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border transition",
+                done
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border hover:border-primary",
+              )}
+            >
+              {done && <Check className="h-3 w-3" strokeWidth={3} />}
+            </button>
+            <span
+              className={cn(
+                "text-base leading-snug",
+                done && "text-muted-foreground line-through decoration-muted-foreground/60",
+              )}
+            >
+              {task.title}
+            </span>
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="grid grid-cols-2 gap-3 rounded-xl border border-border-soft bg-surface-muted p-3 text-sm">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Category
+            </p>
+            <p className="mt-0.5 font-medium">{task.category}</p>
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Due
+            </p>
+            <p className="mt-0.5 font-medium">{extras.dueDate || task.due}</p>
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Assignee
+            </p>
+            <div className="mt-1 flex items-center gap-2">
+              <PersonAvatar person={assignee} size="xs" />
+              <span className="font-medium">{assignee.name}</span>
+            </div>
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Scope
+            </p>
+            <p className="mt-0.5 font-medium">{task.scope}</p>
+          </div>
+        </div>
+
+        {/* Notes */}
+        <div>
+          <p className="mb-1.5 text-xs font-semibold text-muted-foreground">Notes</p>
+          <Textarea
+            rows={2}
+            placeholder="Add notes, context, links…"
+            value={extras.notes ?? ""}
+            onChange={(e) => onUpdateExtras(task.id, { ...extras, notes: e.target.value })}
+          />
+        </div>
+
+        {/* Attachments */}
+        <div>
+          <div className="mb-1.5 flex items-center justify-between">
+            <p className="text-xs font-semibold text-muted-foreground">
+              Attachments ({extras.attachments.length})
+            </p>
+            <button
+              onClick={() => {
+                const id = `a${Date.now()}`;
+                onUpdateExtras(task.id, {
+                  ...extras,
+                  attachments: [
+                    ...extras.attachments,
+                    { id, name: `note-${extras.attachments.length + 1}.pdf`, size: "92 KB" },
+                  ],
+                });
+                toast.success("Attached");
+              }}
+              className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+            >
+              <Paperclip className="h-3.5 w-3.5" /> Attach
+            </button>
+          </div>
+          {extras.attachments.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No attachments yet.</p>
+          ) : (
+            <ul className="flex flex-col gap-1.5">
+              {extras.attachments.map((a) => (
+                <li
+                  key={a.id}
+                  className="flex items-center justify-between rounded-lg border border-border-soft bg-surface-muted px-3 py-2 text-sm"
+                >
+                  <span className="flex items-center gap-2">
+                    <Paperclip className="h-3.5 w-3.5 text-muted-foreground" />
+                    {a.name}
+                    <span className="text-xs text-muted-foreground">· {a.size}</span>
+                  </span>
+                  <button
+                    onClick={() =>
+                      onUpdateExtras(task.id, {
+                        ...extras,
+                        attachments: extras.attachments.filter((x) => x.id !== a.id),
+                      })
+                    }
+                    className="text-muted-foreground hover:text-rose-600"
+                    aria-label="Remove"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Comments */}
+        <div>
+          <p className="mb-1.5 text-xs font-semibold text-muted-foreground">
+            Comments ({extras.comments.length})
+          </p>
+          {extras.comments.length > 0 && (
+            <ul className="mb-3 flex flex-col gap-2">
+              {extras.comments.map((c) => (
+                <li key={c.id} className="rounded-lg border border-border-soft bg-surface-muted p-3">
+                  <div className="flex items-baseline justify-between">
+                    <p className="text-xs font-semibold">{c.author}</p>
+                    <p className="text-[10px] text-muted-foreground">{c.when}</p>
+                  </div>
+                  <p className="mt-1 text-sm">{c.body}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex gap-2">
+            <Input
+              placeholder="Write a comment…"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addComment();
+                }
+              }}
+            />
+            <Button onClick={addComment}>
+              <MessageSquare className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Close
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -119,13 +415,17 @@ function TasksPage() {
   const [view, setView] = useState<ViewId>("checklist");
   const [range, setRange] = useState<DateRange>(() => defaultRange(7));
   const [newOpen, setNewOpen] = useState(false);
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [doneIds, setDoneIds] = useState<Set<string>>(
     new Set(allTasks.filter((t) => t.column === "done").map((t) => t.id)),
   );
+  const [extras, setExtras] = useState<Record<string, TaskExtras>>({});
+  const [createdTasks, setCreatedTasks] = useState<KanbanTask[]>([]);
+  const [showAllMeetings, setShowAllMeetings] = useState(false);
 
   const filtered = useMemo<KanbanTask[]>(() => {
-    return allTasks.filter((t) => t.owner === owner && t.scope === scope);
-  }, [owner, scope]);
+    return [...allTasks, ...createdTasks].filter((t) => t.owner === owner && t.scope === scope);
+  }, [owner, scope, createdTasks]);
 
   const visibleTasks = filtered.map((t) => ({
     ...t,
@@ -139,6 +439,36 @@ function TasksPage() {
       else next.add(id);
       return next;
     });
+  };
+
+  const updateExtras = (id: string, next: TaskExtras) => {
+    setExtras((prev) => ({ ...prev, [id]: next }));
+  };
+
+  const getExtras = (id: string) => extras[id] ?? emptyExtras();
+
+  const handleCreate = (input: {
+    title: string;
+    dueDate: string;
+    notes: string;
+    attachments: Attachment[];
+  }) => {
+    const id = `n${Date.now()}`;
+    const newTask: KanbanTask = {
+      id,
+      title: input.title,
+      category: "OPS",
+      due: input.dueDate || "Today",
+      assignee: "kp",
+      column: "todo",
+      owner,
+      scope,
+    };
+    setCreatedTasks((prev) => [newTask, ...prev]);
+    setExtras((prev) => ({
+      ...prev,
+      [id]: { dueDate: input.dueDate, notes: input.notes, attachments: input.attachments, comments: [] },
+    }));
   };
 
   // Date-aware metric derivation. Range size scales the figures.
@@ -174,6 +504,8 @@ function TasksPage() {
     },
   ];
 
+  const openTask = visibleTasks.find((t) => t.id === openTaskId) ?? null;
+
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6">
       <TopBar
@@ -192,7 +524,7 @@ function TasksPage() {
       {/* Filters above KPI cards */}
       <div className="flex flex-wrap items-center gap-3">
         <DropdownPill value={owner} options={OWNERS} onChange={setOwner} icon={Users} />
-        <DropdownPill value={scope} options={SCOPES} onChange={setScope} icon={Calendar} />
+        <DropdownPill value={scope} options={SCOPES} onChange={setScope} icon={CalendarIcon} />
         <DateRangePicker value={range} onChange={setRange} align="start" />
       </div>
 
@@ -239,10 +571,13 @@ function TasksPage() {
                 return (
                   <li
                     key={t.id}
-                    className="grid grid-cols-[24px_1fr_auto_auto] items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-surface-muted"
+                    className="grid grid-cols-[24px_1fr_auto] items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-surface-muted"
                   >
                     <button
-                      onClick={() => toggleDone(t.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleDone(t.id);
+                      }}
                       className={cn(
                         "grid h-5 w-5 shrink-0 place-items-center rounded-full border transition",
                         done
@@ -253,7 +588,10 @@ function TasksPage() {
                     >
                       {done && <Check className="h-3 w-3" strokeWidth={3} />}
                     </button>
-                    <div className="min-w-0">
+                    <button
+                      onClick={() => setOpenTaskId(t.id)}
+                      className="min-w-0 text-left"
+                    >
                       <p
                         className={cn(
                           "truncate text-sm",
@@ -264,17 +602,10 @@ function TasksPage() {
                       >
                         {t.title}
                       </p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {t.category} · {t.due}
-                      </p>
-                    </div>
-                    {t.flag && (
-                      <Chip tone={t.flag === "Flagged" ? "pink" : t.flag === "High" ? "amber" : "blue"}>
-                        {t.flag}
-                      </Chip>
-                    )}
+                      <p className="mt-0.5 text-xs text-muted-foreground">{t.due}</p>
+                    </button>
                     <button
-                      onClick={() => toast.info(`Open ${t.title}`)}
+                      onClick={() => setOpenTaskId(t.id)}
                       className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
                       aria-label="Open task"
                     >
@@ -304,7 +635,7 @@ function TasksPage() {
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-[20px] font-semibold tracking-tight">Next up</h2>
             <button
-              onClick={() => toast.info("Showing all meetings")}
+              onClick={() => setShowAllMeetings(true)}
               className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
             >
               See all <ArrowRight className="h-3.5 w-3.5" />
@@ -333,7 +664,7 @@ function TasksPage() {
                 </div>
                 <PersonAvatar person={getPerson(m.agent)} size="sm" />
                 <button
-                  onClick={() => toast.info(i === 0 ? `Joining ${m.co}` : `Opening ${m.co} details`)}
+                  onClick={() => toast.success(i === 0 ? `Joining ${m.co}…` : `Opened ${m.co} details`)}
                   className={cn(
                     "rounded-full px-4 py-1.5 text-xs font-semibold transition",
                     i === 0
@@ -363,7 +694,7 @@ function TasksPage() {
                   key={f.id}
                   className="flex items-center gap-3 rounded-2xl border border-border bg-surface p-4 shadow-soft hover:bg-surface-muted"
                 >
-                  <Calendar className="h-4 w-4 shrink-0 text-primary" />
+                  <CalendarIcon className="h-4 w-4 shrink-0 text-primary" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-2">
                       <p className="truncate text-sm font-semibold">{f.who}</p>
@@ -392,7 +723,43 @@ function TasksPage() {
         </section>
       </div>
 
-      <NewTaskDialog open={newOpen} onOpenChange={setNewOpen} />
+      <NewTaskDialog open={newOpen} onOpenChange={setNewOpen} onCreate={handleCreate} />
+      <TaskDetailDialog
+        task={openTask}
+        extras={openTask ? getExtras(openTask.id) : emptyExtras()}
+        onClose={() => setOpenTaskId(null)}
+        onUpdateExtras={updateExtras}
+        done={openTask ? doneIds.has(openTask.id) : false}
+        onToggleDone={toggleDone}
+      />
+
+      {/* All meetings dialog */}
+      <Dialog open={showAllMeetings} onOpenChange={setShowAllMeetings}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>All upcoming meetings</DialogTitle>
+            <DialogDescription>{meetings.length} scheduled today</DialogDescription>
+          </DialogHeader>
+          <ul className="flex flex-col gap-2">
+            {meetings.map((m) => (
+              <li
+                key={m.time}
+                className="flex items-center gap-3 rounded-xl border border-border-soft bg-surface-muted p-3"
+              >
+                <div className="w-20">
+                  <p className="text-sm font-semibold tabular-nums">{m.time}</p>
+                  <p className="text-xs text-muted-foreground">{m.duration}</p>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="truncate text-sm font-semibold">{m.co}</p>
+                  <p className="truncate text-xs text-muted-foreground">{m.contact}</p>
+                </div>
+                <PersonAvatar person={getPerson(m.agent)} size="xs" />
+              </li>
+            ))}
+          </ul>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
