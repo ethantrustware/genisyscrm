@@ -14,7 +14,6 @@ import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppTasksRouteImport } from './routes/_app.tasks'
 import { Route as AppClientsRouteImport } from './routes/_app.clients'
 import { Route as AppCallCenterRouteImport } from './routes/_app.call-center'
-import { Route as AppAgentsRouteImport } from './routes/_app.agents'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -40,21 +39,14 @@ const AppCallCenterRoute = AppCallCenterRouteImport.update({
   path: '/call-center',
   getParentRoute: () => AppRoute,
 } as any)
-const AppAgentsRoute = AppAgentsRouteImport.update({
-  id: '/agents',
-  path: '/agents',
-  getParentRoute: () => AppRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
-  '/agents': typeof AppAgentsRoute
   '/call-center': typeof AppCallCenterRoute
   '/clients': typeof AppClientsRoute
   '/tasks': typeof AppTasksRoute
 }
 export interface FileRoutesByTo {
-  '/agents': typeof AppAgentsRoute
   '/call-center': typeof AppCallCenterRoute
   '/clients': typeof AppClientsRoute
   '/tasks': typeof AppTasksRoute
@@ -63,7 +55,6 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
-  '/_app/agents': typeof AppAgentsRoute
   '/_app/call-center': typeof AppCallCenterRoute
   '/_app/clients': typeof AppClientsRoute
   '/_app/tasks': typeof AppTasksRoute
@@ -71,13 +62,12 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/agents' | '/call-center' | '/clients' | '/tasks'
+  fullPaths: '/' | '/call-center' | '/clients' | '/tasks'
   fileRoutesByTo: FileRoutesByTo
-  to: '/agents' | '/call-center' | '/clients' | '/tasks' | '/'
+  to: '/call-center' | '/clients' | '/tasks' | '/'
   id:
     | '__root__'
     | '/_app'
-    | '/_app/agents'
     | '/_app/call-center'
     | '/_app/clients'
     | '/_app/tasks'
@@ -125,18 +115,10 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCallCenterRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/agents': {
-      id: '/_app/agents'
-      path: '/agents'
-      fullPath: '/agents'
-      preLoaderRoute: typeof AppAgentsRouteImport
-      parentRoute: typeof AppRoute
-    }
   }
 }
 
 interface AppRouteChildren {
-  AppAgentsRoute: typeof AppAgentsRoute
   AppCallCenterRoute: typeof AppCallCenterRoute
   AppClientsRoute: typeof AppClientsRoute
   AppTasksRoute: typeof AppTasksRoute
@@ -144,7 +126,6 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
-  AppAgentsRoute: AppAgentsRoute,
   AppCallCenterRoute: AppCallCenterRoute,
   AppClientsRoute: AppClientsRoute,
   AppTasksRoute: AppTasksRoute,

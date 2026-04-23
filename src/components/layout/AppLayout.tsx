@@ -1,4 +1,5 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { useState } from "react";
 import {
   Search,
   Bell,
@@ -6,33 +7,47 @@ import {
   PanelLeftClose,
   ChevronDown,
   ChevronRight,
-  Sun,
   CheckSquare,
   Phone,
   Building2,
-  Users,
   LayoutGrid,
-  Plus,
   HelpCircle,
   Moon,
+  Sun,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PersonAvatar } from "@/components/people/Avatar";
 import { getPerson } from "@/data/people";
+import { toast } from "sonner";
 
 type NavItem = {
-  to: "/" | "/tasks" | "/call-center" | "/agents" | "/clients";
+  to: "/tasks" | "/call-center" | "/clients";
   label: string;
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
 };
 
 const nav: NavItem[] = [
-  { to: "/", label: "Today", icon: Sun },
   { to: "/tasks", label: "Tasks", icon: CheckSquare },
   { to: "/call-center", label: "Call Center", icon: Phone },
-  { to: "/agents", label: "Agents", icon: Users },
   { to: "/clients", label: "Clients", icon: Building2 },
 ];
+
+function ThemeToggle() {
+  const [dark, setDark] = useState(false);
+  return (
+    <button
+      onClick={() => {
+        const next = !dark;
+        setDark(next);
+        document.documentElement.classList.toggle("dark", next);
+      }}
+      className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted"
+      aria-label="Toggle theme"
+    >
+      {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    </button>
+  );
+}
 
 function Sidebar() {
   const { location } = useRouterState();
@@ -49,13 +64,9 @@ function Sidebar() {
           <span className="text-[17px] font-semibold tracking-tight">Genisys</span>
         </div>
         <div className="flex items-center gap-0.5">
+          <ThemeToggle />
           <button
-            className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted"
-            aria-label="Toggle theme"
-          >
-            <Moon className="h-4 w-4" />
-          </button>
-          <button
+            onClick={() => toast.info("Sidebar collapse — coming soon")}
             className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted"
             aria-label="Collapse sidebar"
           >
@@ -65,7 +76,10 @@ function Sidebar() {
       </div>
 
       {/* Workspace switcher */}
-      <button className="mt-1 flex items-center justify-between rounded-xl border border-border bg-surface px-3 py-2.5 text-sm font-medium shadow-soft hover:bg-muted">
+      <button
+        onClick={() => toast.info("Workspace switcher — coming soon")}
+        className="mt-1 flex items-center justify-between rounded-xl border border-border bg-surface px-3 py-2.5 text-sm font-medium shadow-soft hover:bg-muted"
+      >
         <span className="flex items-center gap-2">
           <span className="grid h-5 w-5 place-items-center rounded-md bg-primary/10 text-[10px] font-bold text-primary">
             G
@@ -93,10 +107,7 @@ function Sidebar() {
 
       <nav className="flex flex-col gap-0.5">
         {nav.map((item) => {
-          const active =
-            item.to === "/"
-              ? currentPath === "/"
-              : currentPath.startsWith(item.to);
+          const active = currentPath === "/" ? item.to === "/tasks" : currentPath.startsWith(item.to);
           const Icon = item.icon;
           return (
             <Link
@@ -131,6 +142,7 @@ function Sidebar() {
         ].map((p) => (
           <button
             key={p.name}
+            onClick={() => toast.info(`Filtering by ${p.name} pod`)}
             className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-foreground/75 hover:bg-muted"
           >
             <span className="flex items-center gap-2.5">
@@ -143,20 +155,29 @@ function Sidebar() {
       </div>
 
       <div className="mt-auto flex flex-col gap-1">
-        <button className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground/75 hover:bg-muted">
+        <button
+          onClick={() => toast.info("Settings — coming soon")}
+          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground/75 hover:bg-muted"
+        >
           <Settings className="h-4 w-4" /> Settings
         </button>
-        <button className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground/75 hover:bg-muted">
+        <button
+          onClick={() => toast.info("Help & Support — coming soon")}
+          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground/75 hover:bg-muted"
+        >
           <HelpCircle className="h-4 w-4" /> Help & Support
         </button>
-        <div className="mt-2 flex items-center gap-2.5 rounded-xl border border-border bg-surface px-3 py-2 shadow-soft">
+        <button
+          onClick={() => toast.info("Profile menu — coming soon")}
+          className="mt-2 flex items-center gap-2.5 rounded-xl border border-border bg-surface px-3 py-2 shadow-soft hover:bg-muted"
+        >
           <PersonAvatar person={getPerson("kp")} size="sm" />
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 text-left">
             <p className="truncate text-sm font-semibold">Kenji Park</p>
             <p className="truncate text-xs text-muted-foreground">Available</p>
           </div>
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        </div>
+        </button>
       </div>
     </aside>
   );
@@ -197,17 +218,26 @@ export function TopBar({
             className="h-10 w-[260px] rounded-full border border-border bg-surface pl-9 pr-4 text-sm shadow-soft outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/15"
           />
         </div>
-        <div className="flex items-center gap-2 rounded-full border border-border bg-surface py-1 pl-1 pr-3 shadow-soft">
+        <button
+          onClick={() => toast.info("Profile menu — coming soon")}
+          className="flex items-center gap-2 rounded-full border border-border bg-surface py-1 pl-1 pr-3 shadow-soft hover:bg-muted"
+        >
           <PersonAvatar person={getPerson("kp")} size="sm" />
-          <div className="leading-tight">
+          <div className="leading-tight text-left">
             <p className="text-sm font-semibold">Kenji Park</p>
             <p className="text-[11px] text-muted-foreground">Admin</p>
           </div>
-        </div>
-        <button className="grid h-10 w-10 place-items-center rounded-full border border-border bg-surface text-muted-foreground shadow-soft hover:text-foreground">
+        </button>
+        <button
+          onClick={() => toast.info("No new notifications")}
+          className="grid h-10 w-10 place-items-center rounded-full border border-border bg-surface text-muted-foreground shadow-soft hover:text-foreground"
+        >
           <Bell className="h-4 w-4" />
         </button>
-        <button className="grid h-10 w-10 place-items-center rounded-full border border-border bg-surface text-muted-foreground shadow-soft hover:text-foreground">
+        <button
+          onClick={() => toast.info("Settings — coming soon")}
+          className="grid h-10 w-10 place-items-center rounded-full border border-border bg-surface text-muted-foreground shadow-soft hover:text-foreground"
+        >
           <Settings className="h-4 w-4" />
         </button>
         {actions}
@@ -224,13 +254,5 @@ export function AppLayout() {
         <Outlet />
       </main>
     </div>
-  );
-}
-
-export function NewMemberPill() {
-  return (
-    <button className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm font-medium shadow-soft hover:bg-muted">
-      <Plus className="h-4 w-4" /> Add Member
-    </button>
   );
 }
