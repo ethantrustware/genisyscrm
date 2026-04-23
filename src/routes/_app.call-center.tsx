@@ -149,9 +149,9 @@ function CallCenterPage() {
         }
       />
 
-      {/* Tab strip */}
-      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border-soft">
-        <div className="flex items-center gap-7">
+      {/* Segmented pill tabs */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-muted p-1">
           {tabs.map((t) => {
             const Icon = t.icon;
             const active = t.id === tab;
@@ -160,23 +160,24 @@ function CallCenterPage() {
                 key={t.id}
                 onClick={() => setTab(t.id)}
                 className={cn(
-                  "relative flex items-center gap-2 pb-3 text-sm font-medium transition",
-                  active ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                  "inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-semibold transition",
+                  active
+                    ? "bg-surface text-primary shadow-soft"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-3.5 w-3.5" />
                 {t.label}
-                {active && <span className="absolute inset-x-0 -bottom-px h-[2px] rounded-full bg-primary" />}
               </button>
             );
           })}
         </div>
-        <div className="flex items-center gap-2 pb-2">
+        <div className="flex items-center gap-2">
           <button className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm font-medium shadow-soft hover:bg-muted">
             <SlidersHorizontal className="h-4 w-4" /> Filter
           </button>
           <button className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-soft hover:bg-primary/90">
-            <Plus className="h-4 w-4" /> New Call
+            <Plus className="h-4 w-4" /> New call
           </button>
         </div>
       </div>
