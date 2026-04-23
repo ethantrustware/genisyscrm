@@ -74,16 +74,13 @@ function SegmentedPills<T extends string>({
   value,
   onChange,
 }: {
-  options: readonly { id: T; label: string }[] | readonly T[];
+  options: readonly { id: T; label: string }[];
   value: T;
   onChange: (v: T) => void;
 }) {
-  const items = (options as readonly (T | { id: T; label: string })[]).map((o) =>
-    typeof o === "string" ? { id: o, label: o } : o,
-  );
   return (
     <div className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-muted p-1">
-      {items.map((o) => (
+      {options.map((o) => (
         <button
           key={o.id}
           onClick={() => onChange(o.id)}
