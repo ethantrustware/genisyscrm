@@ -58,7 +58,12 @@ const meetings = [
   { time: "1:30 PM", duration: "45 min", co: "Lumen Logistics", type: "Demo", contact: "Margo Achterberg, COO", agent: "jw" },
 ];
 
-const SCOPES: Scope[] = ["Daily", "Weekly", "Monthly", "Quarterly"];
+const SCOPES: { id: Scope; label: Scope }[] = [
+  { id: "Daily", label: "Daily" },
+  { id: "Weekly", label: "Weekly" },
+  { id: "Monthly", label: "Monthly" },
+  { id: "Quarterly", label: "Quarterly" },
+];
 const OWNERS: { id: Owner; label: string }[] = [
   { id: "me", label: "My tasks" },
   { id: "pod", label: "Pod tasks" },
