@@ -1,97 +1,85 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Plus,
   SlidersHorizontal,
   KanbanSquare,
-  Table2,
-  CalendarDays,
-  Sparkles,
-  Archive,
-  Pencil,
-  Trash2,
-  ChevronLeft,
-  ChevronRight,
+  ListChecks,
+  Check,
+  ArrowRight,
+  Calendar,
+  X,
 } from "lucide-react";
-import { TopBar, NewMemberPill } from "@/components/layout/AppLayout";
+import { TopBar } from "@/components/layout/AppLayout";
 import { Chip } from "@/components/ui/chip";
-import { AvatarStack } from "@/components/people/Avatar";
+import { PersonAvatar } from "@/components/people/Avatar";
 import { KanbanBoard } from "@/components/tasks/KanbanBoard";
-import { kanbanTasks } from "@/data/tasks";
+import { allTasks, followUps, type Scope, type Owner, type KanbanTask } from "@/data/tasks";
+import { getPerson } from "@/data/people";
 import { cn } from "@/lib/utils";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/tasks")({
   head: () => ({
     meta: [
       { title: "Tasks — Genisys" },
-      { name: "description", content: "Manage tasks across pods, clients, and campaigns." },
+      { name: "description", content: "Daily command center for tasks, meetings, and follow-ups." },
     ],
   }),
   component: TasksPage,
 });
 
-type Task = {
-  id: string;
-  title: string;
-  members: string[];
-  deadline: string;
-  priority: 1 | 2 | 3;
-  status: "Completed" | "In Progress" | "Up Coming" | "Blocked";
-  progress: number;
-};
-
-const tasks: Task[] = [
-  { id: "t1", title: "Build Northwind discovery deck", members: ["mo", "sl"], deadline: "Jun 20, 2028", priority: 1, status: "Completed", progress: 100 },
-  { id: "t2", title: "Halcyon Health script v3 review", members: ["jw", "pr", "ev"], deadline: "Jun 29, 2028", priority: 2, status: "In Progress", progress: 70 },
-  { id: "t3", title: "Run Q3 show-rate analysis", members: ["sl", "rc", "pr"], deadline: "Oct 15, 2028", priority: 3, status: "Completed", progress: 100 },
-  { id: "t4", title: "Onboard 2 new SDRs to Solace pod", members: ["mo", "ta", "dh"], deadline: "Mar 03, 2028", priority: 1, status: "Up Coming", progress: 70 },
-  { id: "t5", title: "Document objection-handling playbook", members: ["nb", "hr", "yt"], deadline: "Jun 20, 2028", priority: 3, status: "In Progress", progress: 20 },
+const stats = [
+  { label: "Meetings today", value: "6", sub: "4 clients", barColor: "bg-sky-400", pct: 50 },
+  { label: "Tasks to do", value: "3", sub: "of 5", barColor: "bg-orange-400", pct: 60 },
+  { label: "Team appts", value: "42", sub: "+12% vs yesterday", barColor: "bg-amber-400", pct: 78 },
 ];
 
-const SCOPES = ["Daily", "Weekly", "Monthly", "Quarterly"] as const;
-type Scope = (typeof SCOPES)[number];
+const meetings = [
+  { time: "9:30 AM", duration: "30 min", co: "Northwind Analytics", type: "Discovery", contact: "David Mehta, VP Revenue", agent: "sl" },
+  { time: "10:15 AM", duration: "45 min", co: "Halcyon Health", type: "Demo", contact: "Elise Parisi, Head of Growth", agent: "ev" },
+  { time: "11:00 AM", duration: "30 min", co: "Ridgefield Capital", type: "Discovery", contact: "Bernard Orlov, CRO", agent: "mo" },
+  { time: "1:30 PM", duration: "45 min", co: "Lumen Logistics", type: "Demo", contact: "Margo Achterberg, COO", agent: "jw" },
+];
 
+const SCOPES: { id: Scope; label: Scope }[] = [
+  { id: "Daily", label: "Daily" },
+  { id: "Weekly", label: "Weekly" },
+  { id: "Monthly", label: "Monthly" },
+  { id: "Quarterly", label: "Quarterly" },
+];
+const OWNERS: { id: Owner; label: string }[] = [
+  { id: "me", label: "My tasks" },
+  { id: "pod", label: "Pod tasks" },
+];
 const VIEWS = [
+  { id: "checklist", label: "Checklist", icon: ListChecks },
   { id: "kanban", label: "Kanban", icon: KanbanSquare },
-  { id: "table", label: "Table", icon: Table2 },
-  { id: "timeline", label: "Timeline", icon: CalendarDays },
-  { id: "ai", label: "AI Assistant", icon: Sparkles },
-  { id: "archive", label: "Archive", icon: Archive },
 ] as const;
 type ViewId = (typeof VIEWS)[number]["id"];
-
-function PriorityChip({ p }: { p: 1 | 2 | 3 }) {
-  const map = {
-    1: { tone: "pink" as const, label: "Priority 1" },
-    2: { tone: "amber" as const, label: "Priority 2" },
-    3: { tone: "blue" as const, label: "Priority 3" },
-  };
-  const v = map[p];
-  return <Chip tone={v.tone}>{v.label}</Chip>;
-}
-
-function StatusChip({ s }: { s: Task["status"] }) {
-  const map = { Completed: "mint", "In Progress": "blue", "Up Coming": "pink", Blocked: "amber" } as const;
-  return <Chip tone={map[s]}>{s}</Chip>;
-}
-
-function ProgressBar({ value }: { value: number }) {
-  return (
-    <div className="flex items-center gap-3">
-      <div className="h-1.5 w-32 overflow-hidden rounded-full bg-muted">
-        <div className="h-full rounded-full bg-primary" style={{ width: `${value}%` }} />
-      </div>
-      <span className="text-xs font-medium text-muted-foreground tabular-nums">{value}%</span>
-    </div>
-  );
-}
 
 function SegmentedPills<T extends string>({
   options,
   value,
   onChange,
 }: {
-  options: readonly T[];
+  options: readonly { id: T; label: string }[];
   value: T;
   onChange: (v: T) => void;
 }) {
@@ -99,153 +87,361 @@ function SegmentedPills<T extends string>({
     <div className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-muted p-1">
       {options.map((o) => (
         <button
-          key={o}
-          onClick={() => onChange(o)}
+          key={o.id}
+          onClick={() => onChange(o.id)}
           className={cn(
             "rounded-full px-3.5 py-1.5 text-xs font-semibold transition",
-            value === o
+            value === o.id
               ? "bg-surface text-primary shadow-soft"
               : "text-muted-foreground hover:text-foreground",
           )}
         >
-          {o}
+          {o.label}
         </button>
       ))}
     </div>
   );
 }
 
+function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const [title, setTitle] = useState("");
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>New task</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="title">Title</Label>
+            <Input
+              id="title"
+              placeholder="What needs doing?"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="notes">Notes</Label>
+            <Textarea id="notes" placeholder="Add context..." rows={3} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              if (!title.trim()) {
+                toast.error("Add a title");
+                return;
+              }
+              toast.success(`Task added: ${title}`);
+              setTitle("");
+              onOpenChange(false);
+            }}
+          >
+            Create task
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function FilterPopover({
+  category,
+  setCategory,
+}: {
+  category: string;
+  setCategory: (c: string) => void;
+}) {
+  const cats = ["All", "SCRIPTS", "OPERATIONS", "ANALYSIS", "TEAM", "CLIENT", "REPORTING", "HR", "COACHING", "OPS"];
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm font-medium shadow-soft hover:bg-muted">
+          <SlidersHorizontal className="h-4 w-4" /> Filter
+          {category !== "All" && (
+            <Chip tone="blue" className="ml-1">
+              {category}
+            </Chip>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-2" align="end">
+        <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Category</p>
+        <ul className="flex flex-col">
+          {cats.map((c) => (
+            <li key={c}>
+              <button
+                onClick={() => setCategory(c)}
+                className={cn(
+                  "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted",
+                  category === c && "bg-primary-soft text-primary",
+                )}
+              >
+                {c}
+                {category === c && <Check className="h-4 w-4" />}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function TasksPage() {
   const [scope, setScope] = useState<Scope>("Daily");
-  const [view, setView] = useState<ViewId>("kanban");
+  const [owner, setOwner] = useState<Owner>("me");
+  const [view, setView] = useState<ViewId>("checklist");
+  const [category, setCategory] = useState("All");
+  const [newOpen, setNewOpen] = useState(false);
+  const [doneIds, setDoneIds] = useState<Set<string>>(
+    new Set(allTasks.filter((t) => t.column === "done").map((t) => t.id)),
+  );
+
+  const filtered = useMemo<KanbanTask[]>(() => {
+    return allTasks.filter(
+      (t) =>
+        t.owner === owner &&
+        t.scope === scope &&
+        (category === "All" || t.category === category),
+    );
+  }, [owner, scope, category]);
+
+  const visibleTasks = filtered.map((t) => ({
+    ...t,
+    column: doneIds.has(t.id) ? ("done" as const) : t.column,
+  }));
+
+  const toggleDone = (id: string) => {
+    setDoneIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const remaining = visibleTasks.filter((t) => !doneIds.has(t.id)).length;
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6">
       <TopBar
-        title="Marketing Tasks"
-        breadcrumbs={["Genisys", "Pods", "Aurora", "Tasks"]}
+        title="Tasks"
+        breadcrumbs={["Genisys", "Tasks"]}
         actions={
-          <div className="flex items-center gap-2">
-            <AvatarStack ids={["sl", "mo", "rc", "hr", "ta", "ev"]} max={5} extra={12} />
-            <NewMemberPill />
-          </div>
+          <button
+            onClick={() => setNewOpen(true)}
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-soft hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" /> New task
+          </button>
         }
       />
 
-      {/* Scope pills row */}
+      {/* KPI cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {stats.map((s) => (
+          <div key={s.label} className="rounded-2xl border border-border bg-surface p-5 shadow-soft">
+            <p className="text-[13px] text-muted-foreground">{s.label}</p>
+            <p className="mt-2 text-[32px] font-semibold leading-none tracking-tight tabular-nums text-foreground">
+              {s.value}
+            </p>
+            <p className="mt-1.5 text-xs text-muted-foreground">{s.sub}</p>
+            <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div className={cn("h-full rounded-full", s.barColor)} style={{ width: `${s.pct}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tasks toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <SegmentedPills options={SCOPES} value={scope} onChange={setScope} />
+        <div className="flex flex-wrap items-center gap-3">
+          <SegmentedPills options={OWNERS} value={owner} onChange={setOwner} />
+          <SegmentedPills options={SCOPES} value={scope} onChange={setScope} />
+        </div>
         <div className="flex items-center gap-2">
-          <button className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm font-medium shadow-soft hover:bg-muted">
-            <SlidersHorizontal className="h-4 w-4" /> Filter
-          </button>
-          <button className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm font-medium shadow-soft hover:bg-muted">
-            All assignees
-          </button>
-          <button className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-soft hover:bg-primary/90">
-            <Plus className="h-4 w-4" /> New task
-          </button>
+          <FilterPopover category={category} setCategory={setCategory} />
+          <SegmentedPills
+            options={VIEWS.map((v) => ({ id: v.id, label: v.label }))}
+            value={view}
+            onChange={setView}
+          />
         </div>
       </div>
 
-      {/* View tabs */}
-      <div className="flex flex-wrap items-end gap-7 border-b border-border-soft">
-        {VIEWS.map((v) => {
-          const Icon = v.icon;
-          const active = v.id === view;
-          return (
-            <button
-              key={v.id}
-              onClick={() => setView(v.id)}
-              className={cn(
-                "relative flex items-center gap-2 px-1 pb-3 text-sm font-medium transition",
-                active ? "text-primary" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              {v.label}
-              {active && (
-                <span className="absolute inset-x-0 -bottom-px h-[2px] rounded-full bg-primary" />
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {view === "kanban" && <KanbanBoard tasks={kanbanTasks} />}
-
-      {view === "table" && (
-        <>
-          <div className="overflow-hidden">
-            <div className="grid grid-cols-[1.6fr_1fr_1fr_1fr_1fr_1.2fr_88px] items-center gap-4 px-2 pb-3 text-[13px] font-medium text-muted-foreground">
-              <span>Task</span>
-              <span>Team Members</span>
-              <span>Deadline</span>
-              <span>Priority</span>
-              <span>Status</span>
-              <span>Progress</span>
-              <span className="text-right">Action</span>
+      {/* Tasks view */}
+      {view === "checklist" ? (
+        <div className="rounded-2xl border border-border bg-surface p-2 shadow-soft">
+          {visibleTasks.length === 0 ? (
+            <div className="grid place-items-center py-16 text-sm text-muted-foreground">
+              No tasks for {owner === "me" ? "you" : "the pod"} this {scope.toLowerCase()}.
             </div>
-
+          ) : (
             <ul className="flex flex-col">
-              {tasks.map((t) => (
-                <li
-                  key={t.id}
-                  className="grid grid-cols-[1.6fr_1fr_1fr_1fr_1fr_1.2fr_88px] items-center gap-4 border-t border-border-soft px-2 py-5 text-sm transition hover:bg-surface-muted"
-                >
-                  <span className="font-medium text-foreground/90">{t.title}</span>
-                  <AvatarStack ids={t.members} max={3} />
-                  <span className="text-foreground/80 tabular-nums">{t.deadline}</span>
-                  <span><PriorityChip p={t.priority} /></span>
-                  <span><StatusChip s={t.status} /></span>
-                  <ProgressBar value={t.progress} />
-                  <div className="flex justify-end gap-2 text-muted-foreground">
-                    <button className="grid h-8 w-8 place-items-center rounded-lg hover:bg-muted hover:text-foreground">
-                      <Pencil className="h-4 w-4" />
+              {visibleTasks.map((t) => {
+                const done = doneIds.has(t.id);
+                return (
+                  <li
+                    key={t.id}
+                    className="grid grid-cols-[24px_1fr_auto_auto] items-center gap-3 rounded-xl px-3 py-3 transition hover:bg-surface-muted"
+                  >
+                    <button
+                      onClick={() => toggleDone(t.id)}
+                      className={cn(
+                        "grid h-5 w-5 shrink-0 place-items-center rounded-full border transition",
+                        done
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border hover:border-primary",
+                      )}
+                      aria-label={done ? "Mark incomplete" : "Mark complete"}
+                    >
+                      {done && <Check className="h-3 w-3" strokeWidth={3} />}
                     </button>
-                    <button className="grid h-8 w-8 place-items-center rounded-lg hover:bg-muted hover:text-foreground">
-                      <Trash2 className="h-4 w-4" />
+                    <div className="min-w-0">
+                      <p
+                        className={cn(
+                          "truncate text-sm",
+                          done
+                            ? "text-muted-foreground line-through decoration-muted-foreground/60"
+                            : "font-medium text-foreground",
+                        )}
+                      >
+                        {t.title}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {t.category} · {t.due}
+                      </p>
+                    </div>
+                    {t.flag && (
+                      <Chip tone={t.flag === "Flagged" ? "pink" : t.flag === "High" ? "amber" : "blue"}>
+                        {t.flag}
+                      </Chip>
+                    )}
+                    <button
+                      onClick={() => toast.info(`Open ${t.title}`)}
+                      className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                      aria-label="Open task"
+                    >
+                      <ArrowRight className="h-4 w-4" />
                     </button>
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
+          )}
+          <div className="border-t border-border-soft px-3 py-2">
+            <button
+              onClick={() => setNewOpen(true)}
+              className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left text-sm text-muted-foreground hover:bg-muted"
+            >
+              <Plus className="h-4 w-4" /> Add a task
+            </button>
           </div>
+        </div>
+      ) : (
+        <KanbanBoard tasks={visibleTasks} />
+      )}
 
-          {/* Pagination */}
-          <div className="flex items-center justify-between pt-2 text-sm">
-            <p className="text-muted-foreground">Showing 1–5 from 26</p>
-            <div className="flex items-center gap-1.5">
-              <button className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-surface text-muted-foreground hover:bg-muted">
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              {[1, 2, 3, 4].map((n) => (
+      {/* Next up + Follow-ups */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <section>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-[20px] font-semibold tracking-tight">Next up</h2>
+            <button
+              onClick={() => toast.info("Showing all 6 meetings")}
+              className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+            >
+              See all 6 <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <ul className="flex flex-col gap-2">
+            {meetings.map((m, i) => (
+              <li
+                key={m.time}
+                className={cn(
+                  "flex items-center gap-4 rounded-2xl border px-4 py-3.5 transition",
+                  i === 0
+                    ? "border-primary/20 bg-primary-soft"
+                    : "border-border bg-surface shadow-soft hover:bg-surface-muted",
+                )}
+              >
+                <div className="w-20 shrink-0">
+                  <p className="text-sm font-semibold tabular-nums">{m.time}</p>
+                  <p className="text-xs text-muted-foreground">{m.duration}</p>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="truncate text-sm font-semibold">
+                    {m.co} <span className="font-normal text-muted-foreground">· {m.type}</span>
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">{m.contact}</p>
+                </div>
+                <PersonAvatar person={getPerson(m.agent)} size="sm" />
                 <button
-                  key={n}
+                  onClick={() => toast.info(i === 0 ? `Joining ${m.co}` : `Opening ${m.co} details`)}
                   className={cn(
-                    "grid h-8 w-8 place-items-center rounded-lg text-sm font-medium",
-                    n === 1
-                      ? "bg-primary text-primary-foreground"
+                    "rounded-full px-4 py-1.5 text-xs font-semibold transition",
+                    i === 0
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90"
                       : "border border-border bg-surface text-foreground/80 hover:bg-muted",
                   )}
                 >
-                  {n}
+                  {i === 0 ? "Join" : "Details"}
                 </button>
-              ))}
-              <span className="px-1 text-muted-foreground">…</span>
-              <button className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-surface text-muted-foreground hover:bg-muted">
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        </>
-      )}
+              </li>
+            ))}
+          </ul>
+        </section>
 
-      {(view === "timeline" || view === "ai" || view === "archive") && (
-        <div className="grid place-items-center rounded-2xl border border-dashed border-border bg-surface-muted py-20 text-sm text-muted-foreground">
-          {VIEWS.find((v) => v.id === view)?.label} view — coming soon.
-        </div>
-      )}
+        <section>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-[20px] font-semibold tracking-tight">Follow-ups scheduled</h2>
+            <span className="text-xs font-medium text-muted-foreground">
+              {followUps.length} scheduled
+            </span>
+          </div>
+          <ul className="flex flex-col gap-2">
+            {followUps.map((f) => {
+              const p = getPerson(f.agent);
+              return (
+                <li
+                  key={f.id}
+                  className="flex items-center gap-3 rounded-2xl border border-border bg-surface p-4 shadow-soft hover:bg-surface-muted"
+                >
+                  <Calendar className="h-4 w-4 shrink-0 text-primary" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline gap-2">
+                      <p className="truncate text-sm font-semibold">{f.who}</p>
+                      <span className="truncate text-xs text-muted-foreground">· {f.co}</span>
+                    </div>
+                    <p className="truncate text-xs text-muted-foreground">{f.reason}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-semibold tabular-nums">{f.when}</p>
+                    <PersonAvatar person={p} size="xs" className="mt-1" />
+                  </div>
+                  <button
+                    onClick={() => toast.success(`Marked ${f.who} follow-up done`)}
+                    className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                    aria-label="Dismiss"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="mt-3 text-xs text-muted-foreground">
+            {remaining} task{remaining === 1 ? "" : "s"} remaining for {owner === "me" ? "you" : "the pod"}.
+          </p>
+        </section>
+      </div>
+
+      <NewTaskDialog open={newOpen} onOpenChange={setNewOpen} />
     </div>
   );
 }
