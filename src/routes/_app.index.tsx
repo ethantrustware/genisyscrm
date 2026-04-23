@@ -1,273 +1,225 @@
 import { createFileRoute } from "@tanstack/react-router";
-import {
-  Plus,
-  SlidersHorizontal,
-  KanbanSquare,
-  Table2,
-  CalendarDays,
-  Sparkles,
-  Archive,
-  Pencil,
-  Trash2,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
-import { TopBar, NewMemberPill } from "@/components/layout/AppLayout";
+import { Plus, Calendar, ArrowRight, Check } from "lucide-react";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Chip } from "@/components/ui/chip";
-import { AvatarStack } from "@/components/people/Avatar";
+import { PersonAvatar } from "@/components/people/Avatar";
+import { getPerson } from "@/data/people";
+import { myTodayTasks } from "@/data/tasks";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/")({
   head: () => ({
     meta: [
-      { title: "Tasks — Genisys" },
-      { name: "description", content: "Manage tasks across pods, clients, and campaigns." },
+      { title: "Today — Genisys" },
+      { name: "description", content: "Your daily command center: meetings, tasks, callbacks." },
     ],
   }),
-  component: TasksPage,
+  component: TodayPage,
 });
 
-type Task = {
-  id: string;
-  title: string;
-  members: string[];
-  deadline: string;
-  priority: 1 | 2 | 3;
-  status: "Completed" | "In Progress" | "Up Coming" | "Blocked";
-  progress: number;
-};
-
-const tasks: Task[] = [
-  {
-    id: "t1",
-    title: "Build Northwind discovery deck",
-    members: ["mo", "sl"],
-    deadline: "Jun 20, 2028",
-    priority: 1,
-    status: "Completed",
-    progress: 100,
-  },
-  {
-    id: "t2",
-    title: "Halcyon Health script v3 review",
-    members: ["jw", "pr", "ev"],
-    deadline: "Jun 29, 2028",
-    priority: 2,
-    status: "In Progress",
-    progress: 70,
-  },
-  {
-    id: "t3",
-    title: "Run Q3 show-rate analysis",
-    members: ["sl", "rc", "pr"],
-    deadline: "Oct 15, 2028",
-    priority: 3,
-    status: "Completed",
-    progress: 100,
-  },
-  {
-    id: "t4",
-    title: "Onboard 2 new SDRs to Solace pod",
-    members: ["mo", "ta", "dh"],
-    deadline: "Mar 03, 2028",
-    priority: 1,
-    status: "Up Coming",
-    progress: 70,
-  },
-  {
-    id: "t5",
-    title: "Document objection-handling playbook",
-    members: ["nb", "hr", "yt"],
-    deadline: "Jun 20, 2028",
-    priority: 3,
-    status: "In Progress",
-    progress: 20,
-  },
+const stats = [
+  { label: "Meetings today", value: "6", sub: "4 clients", barColor: "bg-sky-400", pct: 50 },
+  { label: "Tasks to do", value: "3", sub: "of 5", barColor: "bg-orange-400", pct: 60 },
+  { label: "Team appts", value: "42", sub: "+12% vs yesterday", barColor: "bg-amber-400", pct: 78 },
+  { label: "Pipeline", value: "$1.84M", sub: "attributed", barColor: "bg-emerald-500", pct: 82 },
 ];
 
-function PriorityChip({ p }: { p: 1 | 2 | 3 }) {
-  const map = {
-    1: { tone: "pink" as const, label: "Priority 1" },
-    2: { tone: "amber" as const, label: "Priority 2" },
-    3: { tone: "blue" as const, label: "Priority 3" },
-  };
-  const v = map[p];
-  return <Chip tone={v.tone}>{v.label}</Chip>;
-}
+const meetings = [
+  { time: "9:30 AM", duration: "30 min", co: "Northwind Analytics", type: "Discovery", contact: "David Mehta, VP Revenue", agent: "sl" },
+  { time: "10:15 AM", duration: "45 min", co: "Halcyon Health", type: "Demo", contact: "Elise Parisi, Head of Growth", agent: "ev" },
+  { time: "11:00 AM", duration: "30 min", co: "Ridgefield Capital", type: "Discovery", contact: "Bernard Orlov, CRO", agent: "mo" },
+  { time: "1:30 PM", duration: "45 min", co: "Lumen Logistics", type: "Demo", contact: "Margo Achterberg, COO", agent: "jw" },
+];
 
-function StatusChip({ s }: { s: Task["status"] }) {
-  const map = {
-    Completed: "mint",
-    "In Progress": "blue",
-    "Up Coming": "pink",
-    Blocked: "amber",
-  } as const;
-  return <Chip tone={map[s]}>{s}</Chip>;
-}
+const callbacks = [
+  { time: "10:45 AM", who: "Miriam Jensen", co: "Northwind Analytics", note: "Requested pricing details", agent: "sl" },
+  { time: "2:00 PM", who: "Henrik Olofsson", co: "Lumen Logistics", note: "Needs to loop in CFO", agent: "jw" },
+  { time: "3:30 PM", who: "Roshni Gupta", co: "Kestrel Biotech", note: "Budget approval update", agent: "yt" },
+];
 
-function ProgressBar({ value }: { value: number }) {
+function TodayPage() {
   return (
-    <div className="flex items-center gap-3">
-      <div className="h-1.5 w-32 overflow-hidden rounded-full bg-muted">
-        <div
-          className={cn(
-            "h-full rounded-full",
-            value >= 100 ? "bg-primary" : "bg-primary",
-          )}
-          style={{ width: `${value}%` }}
-        />
-      </div>
-      <span className="text-xs font-medium text-muted-foreground tabular-nums">{value}%</span>
-    </div>
-  );
-}
-
-function ViewTab({
-  active,
-  icon: Icon,
-  label,
-}: {
-  active?: boolean;
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-}) {
-  return (
-    <button
-      className={cn(
-        "relative flex items-center gap-2 px-1 pb-3 text-sm font-medium transition",
-        active ? "text-primary" : "text-muted-foreground hover:text-foreground",
-      )}
-    >
-      <Icon className="h-4 w-4" />
-      {label}
-      {active && (
-        <span className="absolute inset-x-0 -bottom-px h-[2px] rounded-full bg-primary" />
-      )}
-    </button>
-  );
-}
-
-function BoardTab({ active, label }: { active?: boolean; label: string }) {
-  return (
-    <button
-      className={cn(
-        "relative pb-3 text-sm font-medium transition",
-        active ? "text-primary" : "text-muted-foreground hover:text-foreground",
-      )}
-    >
-      {label}
-      {active && (
-        <span className="absolute inset-x-0 -bottom-px h-[2px] rounded-full bg-primary" />
-      )}
-    </button>
-  );
-}
-
-function TasksPage() {
-  return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-6">
-      <TopBar
-        title="Marketing Tasks"
-        breadcrumbs={["Genisys", "Pods", "Aurora", "Tasks"]}
+    <div className="mx-auto flex max-w-[1280px] flex-col gap-8">
+      <PageHeader
+        eyebrow="Wednesday, April 23"
+        title={
+          <>
+            Good afternoon, Kenji <span aria-hidden>👋</span>
+          </>
+        }
+        subtitle={
+          <>
+            You have <strong className="font-semibold text-foreground">6 meetings</strong> today across{" "}
+            <strong className="font-semibold text-foreground">4 clients</strong>. Team is pacing{" "}
+            <strong className="font-semibold text-foreground">42 appointments</strong>,{" "}
+            <strong className="font-semibold text-emerald-600">$1.84M</strong> pipeline on the move.
+          </>
+        }
         actions={
-          <div className="flex items-center gap-2">
-            <AvatarStack ids={["sl", "mo", "rc", "hr", "ta", "ev"]} max={5} extra={12} />
-            <NewMemberPill />
-          </div>
+          <>
+            <button className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-2 text-sm font-medium shadow-soft hover:bg-muted">
+              <Calendar className="h-4 w-4" /> Sept 24, 2028
+            </button>
+            <button className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-soft hover:bg-primary/90">
+              <Plus className="h-4 w-4" /> New task
+            </button>
+          </>
         }
       />
 
-      {/* Board switcher */}
-      <div className="flex items-center gap-6 border-b border-border-soft">
-        <BoardTab active label="Aurora Pod" />
-        <BoardTab label="Meridian Pod" />
-        <button className="flex items-center gap-1.5 pb-3 text-sm font-medium text-primary">
-          <Plus className="h-4 w-4" /> Add Board
-        </button>
+      {/* KPI cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {stats.map((s) => (
+          <div
+            key={s.label}
+            className="rounded-2xl border border-border bg-surface p-5 shadow-soft"
+          >
+            <p className="text-[13px] text-muted-foreground">{s.label}</p>
+            <p className="mt-2 text-[32px] font-semibold leading-none tracking-tight tabular-nums text-foreground">
+              {s.value}
+            </p>
+            <p className="mt-1.5 text-xs text-muted-foreground">{s.sub}</p>
+            <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div className={cn("h-full rounded-full", s.barColor)} style={{ width: `${s.pct}%` }} />
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* View switcher + actions */}
-      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border-soft">
-        <div className="flex items-center gap-7">
-          <ViewTab icon={KanbanSquare} label="Kanban" />
-          <ViewTab active icon={Table2} label="Table" />
-          <ViewTab icon={CalendarDays} label="Timeline" />
-          <ViewTab icon={Sparkles} label="AI Assistant" />
-          <ViewTab icon={Archive} label="Archive" />
-        </div>
-        <div className="flex items-center gap-2 pb-2">
-          <button className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm font-medium shadow-soft hover:bg-muted">
-            <SlidersHorizontal className="h-4 w-4" /> Filter
-          </button>
-          <button className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-soft hover:bg-primary/90">
-            <Plus className="h-4 w-4" /> Add Task
-          </button>
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="overflow-hidden">
-        <div className="grid grid-cols-[1.6fr_1fr_1fr_1fr_1fr_1.2fr_88px] items-center gap-4 px-2 pb-3 text-[13px] font-medium text-muted-foreground">
-          <span>Task</span>
-          <span>Team Members</span>
-          <span>Deadline</span>
-          <span>Priority</span>
-          <span>Status</span>
-          <span>Progress</span>
-          <span className="text-right">Action</span>
-        </div>
-
-        <ul className="flex flex-col">
-          {tasks.map((t) => (
-            <li
-              key={t.id}
-              className="grid grid-cols-[1.6fr_1fr_1fr_1fr_1fr_1.2fr_88px] items-center gap-4 border-t border-border-soft px-2 py-5 text-sm transition hover:bg-surface-muted"
-            >
-              <span className="font-medium text-foreground/90">{t.title}</span>
-              <AvatarStack ids={t.members} max={3} />
-              <span className="text-foreground/80 tabular-nums">{t.deadline}</span>
-              <span><PriorityChip p={t.priority} /></span>
-              <span><StatusChip s={t.status} /></span>
-              <ProgressBar value={t.progress} />
-              <div className="flex justify-end gap-2 text-muted-foreground">
-                <button className="grid h-8 w-8 place-items-center rounded-lg hover:bg-muted hover:text-foreground">
-                  <Pencil className="h-4 w-4" />
-                </button>
-                <button className="grid h-8 w-8 place-items-center rounded-lg hover:bg-muted hover:text-foreground">
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {/* Pagination */}
-      <div className="flex items-center justify-between pt-2 text-sm">
-        <p className="text-muted-foreground">Showing 1–5 from 26</p>
-        <div className="flex items-center gap-1.5">
-          <button className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-surface text-muted-foreground hover:bg-muted">
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          {[1, 2, 3, 4].map((n) => (
-            <button
-              key={n}
-              className={cn(
-                "grid h-8 w-8 place-items-center rounded-lg text-sm font-medium",
-                n === 1
-                  ? "bg-primary text-primary-foreground"
-                  : "border border-border bg-surface text-foreground/80 hover:bg-muted",
-              )}
-            >
-              {n}
+      {/* Body grid */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.4fr_1fr]">
+        {/* Next up */}
+        <section>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-[20px] font-semibold tracking-tight">Next up</h2>
+            <button className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
+              See all 6 <ArrowRight className="h-3.5 w-3.5" />
             </button>
-          ))}
-          <span className="px-1 text-muted-foreground">…</span>
-          <button className="grid h-8 w-8 place-items-center rounded-lg border border-border bg-surface text-muted-foreground hover:bg-muted">
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
+          </div>
+          <ul className="flex flex-col gap-2">
+            {meetings.map((m, i) => (
+              <li
+                key={m.time}
+                className={cn(
+                  "flex items-center gap-4 rounded-2xl border px-4 py-3.5 transition",
+                  i === 0
+                    ? "border-primary/20 bg-primary-soft"
+                    : "border-border bg-surface shadow-soft hover:bg-surface-muted",
+                )}
+              >
+                <div className="w-20 shrink-0">
+                  <p className="text-sm font-semibold tabular-nums">{m.time}</p>
+                  <p className="text-xs text-muted-foreground">{m.duration}</p>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="truncate text-sm font-semibold">
+                    {m.co} <span className="font-normal text-muted-foreground">· {m.type}</span>
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">{m.contact}</p>
+                </div>
+                <PersonAvatar person={getPerson(m.agent)} size="sm" />
+                <button
+                  className={cn(
+                    "rounded-full px-4 py-1.5 text-xs font-semibold transition",
+                    i === 0
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                      : "border border-border bg-surface text-foreground/80 hover:bg-muted",
+                  )}
+                >
+                  {i === 0 ? "Join" : "Details"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        {/* My tasks */}
+        <section>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-[20px] font-semibold tracking-tight">My tasks</h2>
+            <span className="text-xs font-medium text-muted-foreground">3 to go</span>
+          </div>
+          <div className="rounded-2xl border border-border bg-surface p-2 shadow-soft">
+            <ul className="flex flex-col">
+              {myTodayTasks.map((t) => {
+                const done = t.column === "done";
+                return (
+                  <li
+                    key={t.id}
+                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-surface-muted"
+                  >
+                    <span
+                      className={cn(
+                        "grid h-5 w-5 shrink-0 place-items-center rounded-full border transition",
+                        done ? "border-primary bg-primary text-primary-foreground" : "border-border",
+                      )}
+                    >
+                      {done && <Check className="h-3 w-3" strokeWidth={3} />}
+                    </span>
+                    <p
+                      className={cn(
+                        "flex-1 truncate text-sm",
+                        done
+                          ? "text-muted-foreground line-through decoration-muted-foreground/60"
+                          : "font-medium text-foreground",
+                      )}
+                    >
+                      {t.title}
+                    </p>
+                    {t.flag && (
+                      <Chip
+                        tone={t.flag === "Flagged" ? "pink" : t.flag === "High" ? "amber" : "blue"}
+                      >
+                        {t.flag}
+                      </Chip>
+                    )}
+                  </li>
+                );
+              })}
+              <li className="mt-1 flex items-center gap-3 rounded-xl px-3 py-2.5">
+                <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-dashed border-border" />
+                <input
+                  placeholder="Add a task..."
+                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                />
+                <kbd className="rounded-md border border-border bg-surface-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  ↵
+                </kbd>
+              </li>
+            </ul>
+          </div>
+        </section>
       </div>
+
+      {/* Callbacks */}
+      <section>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-[20px] font-semibold tracking-tight">Callbacks scheduled</h2>
+          <span className="text-xs font-medium text-muted-foreground">3 scheduled</span>
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          {callbacks.map((c) => {
+            const p = getPerson(c.agent);
+            return (
+              <div
+                key={c.time}
+                className="rounded-2xl border border-border bg-surface p-4 shadow-soft"
+              >
+                <p className="text-xs font-semibold text-muted-foreground">{c.time}</p>
+                <p className="mt-2 text-sm font-semibold">{c.who}</p>
+                <p className="text-xs text-muted-foreground">{c.co}</p>
+                <p className="mt-3 text-xs text-foreground/70">{c.note}</p>
+                <div className="mt-4 flex items-center justify-between">
+                  <PersonAvatar person={p} size="xs" />
+                  <button className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground hover:bg-primary/90">
+                    Call back
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
     </div>
   );
 }

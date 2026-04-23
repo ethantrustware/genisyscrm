@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Plus, SlidersHorizontal, ChevronRight, TrendingUp } from "lucide-react";
-import { TopBar, NewMemberPill } from "@/components/layout/AppLayout";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Chip } from "@/components/ui/chip";
 import { AvatarStack } from "@/components/people/Avatar";
 import { cn } from "@/lib/utils";
@@ -43,9 +43,9 @@ const clients: Client[] = [
 ];
 
 const stats = [
-  { label: "Pipeline QTD", value: "$1.77M", delta: "+22%" },
+  { label: "Pipeline QTD", value: "$1.77M", delta: "+22%", green: true },
   { label: "Appts set", value: "185", delta: "+14%" },
-  { label: "Avg show rate", value: "74%", delta: "+2 pts" },
+  { label: "Avg show", value: "74%", delta: "+2 pts" },
   { label: "Active clients", value: "8", delta: "2 pilots" },
 ];
 
@@ -57,39 +57,35 @@ function StatusChip({ s }: { s: Client["status"] }) {
 function ClientsPage() {
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6">
-      <TopBar
+      <PageHeader
         title="Clients"
-        breadcrumbs={["Genisys", "Book of Business", "Clients"]}
+        subtitle="Eight active engagements. $1.77M pipeline generated this quarter across the book."
         actions={
-          <div className="flex items-center gap-2">
-            <AvatarStack ids={["sl", "mo", "rc", "hr", "ta", "ev"]} max={5} extra={3} />
-            <NewMemberPill />
-          </div>
+          <>
+            <button className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-2 text-sm font-medium shadow-soft hover:bg-muted">
+              <SlidersHorizontal className="h-4 w-4" /> All industries
+            </button>
+            <button className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-soft hover:bg-primary/90">
+              <Plus className="h-4 w-4" /> New client
+            </button>
+          </>
         }
       />
 
-      {/* Header strip */}
-      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border-soft pb-3">
-        <p className="text-sm text-muted-foreground">
-          Eight active engagements. <span className="font-medium text-foreground">$1.77M</span> pipeline generated this quarter.
-        </p>
-        <div className="flex items-center gap-2">
-          <button className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm font-medium shadow-soft hover:bg-muted">
-            <SlidersHorizontal className="h-4 w-4" /> All industries
-          </button>
-          <button className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-soft hover:bg-primary/90">
-            <Plus className="h-4 w-4" /> New Client
-          </button>
-        </div>
-      </div>
-
       {/* Stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((s, i) => (
+        {stats.map((s) => (
           <div key={s.label} className="rounded-2xl border border-border bg-surface p-4 shadow-soft">
             <p className="text-[13px] text-muted-foreground">{s.label}</p>
             <div className="mt-2 flex items-end justify-between">
-              <p className={cn("text-[26px] font-semibold tracking-tight tabular-nums", i === 0 && "text-emerald-600")}>{s.value}</p>
+              <p
+                className={cn(
+                  "text-[26px] font-semibold tracking-tight tabular-nums",
+                  s.green && "text-emerald-600",
+                )}
+              >
+                {s.value}
+              </p>
               <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
                 <TrendingUp className="h-3.5 w-3.5" /> {s.delta}
               </span>
@@ -100,7 +96,7 @@ function ClientsPage() {
 
       {/* Table */}
       <div>
-        <div className="grid grid-cols-[1.6fr_1fr_120px_120px_140px_120px_24px] items-center gap-4 px-2 pb-3 text-[13px] font-medium text-muted-foreground">
+        <div className="grid grid-cols-[1.6fr_1fr_120px_120px_140px_120px_24px] items-center gap-4 px-2 pb-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           <span>Client</span>
           <span>Industry</span>
           <span>Agents</span>
