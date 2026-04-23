@@ -6,21 +6,32 @@ import {
   PanelLeftClose,
   ChevronDown,
   ChevronRight,
+  Sun,
   CheckSquare,
   Phone,
   Building2,
+  Users,
   LayoutGrid,
   Plus,
   HelpCircle,
+  Moon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PersonAvatar } from "@/components/people/Avatar";
 import { getPerson } from "@/data/people";
 
-const nav = [
-  { to: "/" as const, label: "Tasks", icon: CheckSquare, emoji: "✅" },
-  { to: "/call-center" as const, label: "Call Center", icon: Phone, emoji: "📞" },
-  { to: "/clients" as const, label: "Clients", icon: Building2, emoji: "🏢" },
+type NavItem = {
+  to: "/" | "/tasks" | "/call-center" | "/agents" | "/clients";
+  label: string;
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+};
+
+const nav: NavItem[] = [
+  { to: "/", label: "Today", icon: Sun },
+  { to: "/tasks", label: "Tasks", icon: CheckSquare },
+  { to: "/call-center", label: "Call Center", icon: Phone },
+  { to: "/agents", label: "Agents", icon: Users },
+  { to: "/clients", label: "Clients", icon: Building2 },
 ];
 
 function Sidebar() {
@@ -37,12 +48,20 @@ function Sidebar() {
           </div>
           <span className="text-[17px] font-semibold tracking-tight">Genisys</span>
         </div>
-        <button
-          className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted"
-          aria-label="Collapse sidebar"
-        >
-          <PanelLeftClose className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button
+            className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted"
+            aria-label="Toggle theme"
+          >
+            <Moon className="h-4 w-4" />
+          </button>
+          <button
+            className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted"
+            aria-label="Collapse sidebar"
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* Workspace switcher */}
@@ -56,6 +75,18 @@ function Sidebar() {
         <ChevronDown className="h-4 w-4 text-muted-foreground" />
       </button>
 
+      {/* Command pill */}
+      <div className="relative mt-1">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <input
+          placeholder="Search anything"
+          className="h-9 w-full rounded-xl border border-border bg-surface-muted pl-8 pr-12 text-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/15"
+        />
+        <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-md border border-border bg-surface px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+          ⌘K
+        </kbd>
+      </div>
+
       <p className="mt-4 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         Main menu
       </p>
@@ -64,7 +95,7 @@ function Sidebar() {
         {nav.map((item) => {
           const active =
             item.to === "/"
-              ? currentPath === "/" || currentPath.startsWith("/tasks")
+              ? currentPath === "/"
               : currentPath.startsWith(item.to);
           const Icon = item.icon;
           return (
@@ -94,8 +125,8 @@ function Sidebar() {
       </p>
       <div className="flex flex-col">
         {[
-          { name: "Aurora", count: 5, dot: "bg-blue-500" },
-          { name: "Meridian", count: 4, dot: "bg-pink-500" },
+          { name: "Aurora", count: 5, dot: "bg-sky-500" },
+          { name: "Meridian", count: 4, dot: "bg-rose-500" },
           { name: "Solace", count: 3, dot: "bg-amber-500" },
         ].map((p) => (
           <button
@@ -148,7 +179,9 @@ export function TopBar({
           <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
             {breadcrumbs.map((b, i) => (
               <span key={i} className="flex items-center gap-2">
-                <span className={i === breadcrumbs.length - 1 ? "text-foreground/70" : ""}>{b}</span>
+                <span className={i === breadcrumbs.length - 1 ? "text-foreground/70" : ""}>
+                  {b}
+                </span>
                 {i < breadcrumbs.length - 1 && <span aria-hidden>→</span>}
               </span>
             ))}
