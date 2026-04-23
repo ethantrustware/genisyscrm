@@ -718,7 +718,7 @@ function ClientsPage() {
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6">
       <TopBar
         title="Clients"
-        subtitle="Track package fulfillment, pod assignment, and engagement status across the book."
+        breadcrumbs={["Genisys", "Clients"]}
         actions={
           <button
             onClick={() => setOpen(true)}
