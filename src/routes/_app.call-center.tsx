@@ -9,12 +9,14 @@ import {
   Trophy,
   ChevronRight,
   TrendingUp,
-  ChevronLeft,
   Check,
   Crown,
   Medal,
   Award,
   Sparkles,
+  Users,
+  Building2,
+  CalendarCheck,
 } from "lucide-react";
 import { TopBar } from "@/components/layout/AppLayout";
 import { Chip } from "@/components/ui/chip";
@@ -304,134 +306,96 @@ function PodAccordion({ pod, defaultOpen }: { pod: Pod; defaultOpen?: boolean })
   );
 }
 
-// Calendar utilities
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const DOW = ["S", "M", "T", "W", "T", "F", "S"];
-
-function EodCalendar({
+/* =========================================================================
+ * EOD Reports — uses the top-bar DateRangePicker. No internal calendar.
+ * Shows reports filtered by the selected range, pod, and agent.
+ * ========================================================================= */
+function EodReports({
+  range,
   podFilter,
   agentFilter,
 }: {
+  range: DateRange;
   podFilter: PodFilter;
   agentFilter: string;
 }) {
-  const [cursor, setCursor] = useState(new Date(2026, 3, 1)); // April 2026
-  const [selected, setSelected] = useState<string>("2026-04-23");
+  const start = range.start.toISOString().slice(0, 10);
+  const end = range.end.toISOString().slice(0, 10);
 
-  const year = cursor.getFullYear();
-  const month = cursor.getMonth();
-  const first = new Date(year, month, 1).getDay();
-  const days = new Date(year, month + 1, 0).getDate();
-
-  const filteredReports = eodReports.filter(
+  const filtered = eodReports.filter(
     (r) =>
       (podFilter === "All pods" || r.pod === podFilter) &&
       (agentFilter === "all" || r.agent === agentFilter) &&
-      r.date === selected,
+      r.date >= start &&
+      r.date <= end,
   );
 
-  const reportDates = new Set(
-    eodReports
-      .filter(
-        (r) =>
-          (podFilter === "All pods" || r.pod === podFilter) &&
-          (agentFilter === "all" || r.agent === agentFilter),
-      )
-      .map((r) => r.date),
-  );
+  // Group by date
+  const grouped = filtered.reduce<Record<string, typeof filtered>>((acc, r) => {
+    (acc[r.date] ||= []).push(r);
+    return acc;
+  }, {});
+  const dates = Object.keys(grouped).sort().reverse();
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_1fr]">
-      <div className="rounded-2xl border border-border bg-surface p-4 shadow-soft">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => setCursor(new Date(year, month - 1, 1))}
-            className="grid h-8 w-8 place-items-center rounded-md hover:bg-muted"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <p className="text-sm font-semibold">
-            {MONTHS[month]} {year}
-          </p>
-          <button
-            onClick={() => setCursor(new Date(year, month + 1, 1))}
-            className="grid h-8 w-8 place-items-center rounded-md hover:bg-muted"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {DOW.map((d, i) => (
-            <span key={i}>{d}</span>
-          ))}
-        </div>
-        <div className="mt-1 grid grid-cols-7 gap-1">
-          {Array.from({ length: first }).map((_, i) => (
-            <span key={`pad-${i}`} />
-          ))}
-          {Array.from({ length: days }).map((_, i) => {
-            const day = i + 1;
-            const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-            const has = reportDates.has(dateStr);
-            const isSel = selected === dateStr;
-            return (
-              <button
-                key={day}
-                onClick={() => setSelected(dateStr)}
-                className={cn(
-                  "relative grid aspect-square place-items-center rounded-md text-xs font-medium transition",
-                  isSel
-                    ? "bg-primary text-primary-foreground"
-                    : "hover:bg-muted text-foreground/80",
-                )}
-              >
-                {day}
-                {has && !isSel && (
-                  <span className="absolute bottom-1 h-1 w-1 rounded-full bg-primary" />
-                )}
-              </button>
-            );
-          })}
-        </div>
+    <div className="rounded-2xl border border-border bg-surface p-5 shadow-soft">
+      <div className="flex items-center justify-between">
+        <h3 className="text-[15px] font-semibold">EOD reports</h3>
+        <Chip tone="blue">
+          {filtered.length} report{filtered.length === 1 ? "" : "s"}
+        </Chip>
       </div>
 
-      <div className="rounded-2xl border border-border bg-surface p-5 shadow-soft">
-        <div className="flex items-center justify-between">
-          <h3 className="text-[15px] font-semibold">EOD reports · {selected}</h3>
-          <Chip tone="blue">{filteredReports.length} report{filteredReports.length === 1 ? "" : "s"}</Chip>
+      {dates.length === 0 ? (
+        <div className="grid place-items-center py-12 text-sm text-muted-foreground">
+          No reports for the selected range.
         </div>
-        {filteredReports.length === 0 ? (
-          <div className="grid place-items-center py-12 text-sm text-muted-foreground">
-            No reports for this day.
-          </div>
-        ) : (
-          <ul className="mt-4 flex flex-col">
-            {filteredReports.map((r, i) => {
-              const p = getPerson(r.agent);
-              return (
-                <li
-                  key={i}
-                  className="flex items-start gap-3 border-t border-border-soft py-4 first:border-t-0 first:pt-0"
-                >
-                  <PersonAvatar person={p} size="sm" />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold">{p.name}</p>
-                      <span className="text-xs text-muted-foreground">· {r.pod} · {r.time}</span>
-                      {r.flagged && <Chip tone="pink">Flagged</Chip>}
-                    </div>
-                    <p className="mt-1 text-sm text-foreground/80">{r.summary}</p>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
+      ) : (
+        <div className="mt-4 flex flex-col gap-5">
+          {dates.map((d) => (
+            <div key={d}>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {new Date(d).toLocaleDateString("en-US", {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </p>
+              <ul className="mt-2 flex flex-col">
+                {grouped[d].map((r, i) => {
+                  const p = getPerson(r.agent);
+                  return (
+                    <li
+                      key={i}
+                      className="flex items-start gap-3 border-t border-border-soft py-3.5 first:border-t-0 first:pt-2"
+                    >
+                      <PersonAvatar person={p} size="sm" />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold">{p.name}</p>
+                          <span className="text-xs text-muted-foreground">
+                            · {r.pod} · {r.time}
+                          </span>
+                          {r.flagged && <Chip tone="pink">Flagged</Chip>}
+                        </div>
+                        <p className="mt-1 text-sm text-foreground/80">{r.summary}</p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
+/* =========================================================================
+ * Leaderboard — Apple / Liquid Glass aesthetic.
+ * Frosted gradient podium + ranked rows.
+ * ========================================================================= */
 function PodiumCard({
   rank,
   id,
@@ -447,53 +411,79 @@ function PodiumCard({
   const meta = {
     1: {
       icon: Crown,
-      ring: "ring-amber-300",
-      bg: "from-amber-100 to-amber-50",
-      pill: "bg-amber-400 text-amber-950",
+      glow: "from-amber-200/70 via-amber-100/40 to-transparent",
+      ring: "ring-amber-300/70",
+      iconColor: "text-amber-500",
+      pill: "bg-amber-400/90 text-amber-950",
       label: "1st",
+      height: "h-[280px]",
     },
     2: {
       icon: Medal,
-      ring: "ring-zinc-300",
-      bg: "from-zinc-100 to-zinc-50",
-      pill: "bg-zinc-300 text-zinc-900",
+      glow: "from-zinc-200/60 via-zinc-100/30 to-transparent",
+      ring: "ring-zinc-300/70",
+      iconColor: "text-zinc-500",
+      pill: "bg-zinc-300/90 text-zinc-900",
       label: "2nd",
+      height: "h-[252px]",
     },
     3: {
       icon: Award,
-      ring: "ring-orange-300",
-      bg: "from-orange-100 to-orange-50",
-      pill: "bg-orange-400 text-orange-950",
+      glow: "from-orange-200/60 via-orange-100/30 to-transparent",
+      ring: "ring-orange-300/70",
+      iconColor: "text-orange-500",
+      pill: "bg-orange-400/90 text-orange-950",
       label: "3rd",
+      height: "h-[230px]",
     },
   }[rank];
   const Icon = meta.icon;
+
   return (
     <div
       className={cn(
-        "relative flex flex-col items-center rounded-2xl border border-border bg-gradient-to-b p-5 shadow-soft",
-        meta.bg,
+        "relative flex flex-col items-center justify-end overflow-hidden rounded-3xl border border-border/60 bg-surface/70 px-5 pb-6 pt-8 shadow-card backdrop-blur-xl",
+        meta.height,
       )}
     >
-      <span className={cn("absolute right-3 top-3 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase", meta.pill)}>
+      {/* Frosted glow */}
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-x-0 top-0 h-2/3 bg-gradient-to-b",
+          meta.glow,
+        )}
+      />
+      {/* Subtle inner highlight */}
+      <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-inset ring-white/40" />
+
+      <span
+        className={cn(
+          "absolute right-4 top-4 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider shadow-sm backdrop-blur",
+          meta.pill,
+        )}
+      >
         {meta.label}
       </span>
-      <Icon
-        className={cn(
-          "mb-2 h-7 w-7",
-          rank === 1 ? "text-amber-500" : rank === 2 ? "text-zinc-500" : "text-orange-500",
-        )}
-        strokeWidth={2}
-      />
-      <div className={cn("rounded-full ring-4", meta.ring)}>
+
+      <Icon className={cn("mb-3 h-8 w-8", meta.iconColor)} strokeWidth={2} />
+
+      <div className={cn("rounded-full ring-4 ring-offset-2 ring-offset-surface/0", meta.ring)}>
         <PersonAvatar person={p} size="lg" />
       </div>
-      <p className="mt-3 text-sm font-semibold text-foreground">{p.name}</p>
+
+      <p className="mt-4 text-[15px] font-semibold tracking-tight text-foreground">{p.name}</p>
       <p className="text-xs text-muted-foreground">{p.role}</p>
-      <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-foreground">{value}</p>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">appts</p>
-      <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-surface/70 px-2.5 py-1 text-[11px] font-semibold text-foreground">
-        <Sparkles className="h-3 w-3 text-primary" /> {prize}
+
+      <p className="mt-3 text-[34px] font-bold leading-none tracking-tight tabular-nums text-foreground">
+        {value}
+      </p>
+      <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        appts set
+      </p>
+
+      <div className="relative z-10 mt-4 inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-surface/80 px-3 py-1.5 text-[11px] font-semibold text-foreground shadow-sm backdrop-blur">
+        <Sparkles className="h-3 w-3 text-primary" />
+        {prize}
       </div>
     </div>
   );
@@ -506,7 +496,10 @@ function CallCenterPage() {
   const [callOpen, setCallOpen] = useState(false);
   const [range, setRange] = useState<DateRange>(() => defaultRange(30));
 
-  const allAgents = useMemo(() => podsData.flatMap((p) => p.agents.map((a) => ({ ...a, pod: p.name }))), []);
+  const allAgents = useMemo(
+    () => podsData.flatMap((p) => p.agents.map((a) => ({ ...a, pod: p.name }))),
+    [],
+  );
 
   const multiplier = pod === "All pods" ? 1 : pod === "Aurora" ? 0.55 : pod === "Meridian" ? 0.3 : 0.15;
 
@@ -518,6 +511,22 @@ function CallCenterPage() {
   const rangeMultiplier = Math.max(1, Math.round(dayCount / 7));
 
   const podiumPrizes = ["$200 bonus", "$100 bonus", "$50 bonus"];
+
+  // Workspace summary cards for Agents tab.
+  const totalPods = podsData.length;
+  const totalAgents = allAgents.length;
+  const totalAppts = allAgents.reduce((sum, a) => sum + a.appts, 0);
+
+  const agentSummary = [
+    { label: "Pods", value: String(totalPods), icon: Building2, color: "text-sky-600 bg-sky-50" },
+    { label: "Agents", value: String(totalAgents), icon: Users, color: "text-violet-600 bg-violet-50" },
+    {
+      label: "Appts (today)",
+      value: String(totalAppts),
+      icon: CalendarCheck,
+      color: "text-emerald-600 bg-emerald-50",
+    },
+  ];
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6">
@@ -665,7 +674,7 @@ function CallCenterPage() {
                 </div>
                 <PersonAvatar person={getPerson(a.agent)} size="sm" />
                 <button
-                  onClick={() => toast.info(i === 0 ? `Joining ${a.co}` : `Opening ${a.co} details`)}
+                  onClick={() => toast.success(i === 0 ? `Joining ${a.co}…` : `Opened ${a.co} details`)}
                   className={cn(
                     "rounded-full px-3.5 py-1.5 text-xs font-semibold",
                     i === 0
@@ -682,13 +691,38 @@ function CallCenterPage() {
       )}
 
       {tab === "agents" && (
-        <div className="flex flex-col gap-4">
-          {podsData
-            .filter((p) => pod === "All pods" || p.name === pod)
-            .map((p, i) => (
-              <PodAccordion key={p.id} pod={p} defaultOpen={i === 0} />
-            ))}
-        </div>
+        <>
+          {/* Workspace summary above pods */}
+          <div className="grid grid-cols-3 gap-4">
+            {agentSummary.map((s) => {
+              const Icon = s.icon;
+              return (
+                <div
+                  key={s.label}
+                  className="rounded-2xl border border-border bg-surface p-4 shadow-soft"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-[13px] text-muted-foreground">{s.label}</p>
+                    <span className={cn("grid h-8 w-8 place-items-center rounded-lg", s.color)}>
+                      <Icon className="h-4 w-4" />
+                    </span>
+                  </div>
+                  <p className="mt-2 text-[26px] font-semibold tracking-tight tabular-nums">
+                    {s.value}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-col gap-4">
+            {podsData
+              .filter((p) => pod === "All pods" || p.name === pod)
+              .map((p, i) => (
+                <PodAccordion key={p.id} pod={p} defaultOpen={i === 0} />
+              ))}
+          </div>
+        </>
       )}
 
       {tab === "callbacks" && (
@@ -722,61 +756,100 @@ function CallCenterPage() {
         </section>
       )}
 
-      {tab === "eod" && <EodCalendar podFilter={pod} agentFilter={agentFilter} />}
+      {tab === "eod" && (
+        <EodReports range={range} podFilter={pod} agentFilter={agentFilter} />
+      )}
 
       {tab === "leaderboard" && (
         <section className="flex flex-col gap-6">
-          {/* Incentive banner */}
-          <div className="overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-r from-primary-soft via-surface to-amber-50 p-5 shadow-soft">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary text-primary-foreground">
+          {/* Incentive banner — Apple-style frosted gradient */}
+          <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-gradient-to-br from-primary-soft via-surface to-amber-50 p-6 shadow-card backdrop-blur-xl">
+            <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/40" />
+            <div className="relative flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-soft">
                   <Trophy className="h-5 w-5" />
                 </div>
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-wider text-primary">
                     Monthly challenge
                   </p>
-                  <p className="text-base font-semibold">Top setter wins $200 · Runners-up $100 / $50</p>
+                  <p className="text-base font-semibold tracking-tight">
+                    Top setter wins $200 · Runners-up $100 / $50
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-3 text-sm">
-                <Chip tone="amber">9 days left</Chip>
+                <span className="rounded-full border border-border/40 bg-surface/70 px-3 py-1 text-xs font-semibold backdrop-blur">
+                  9 days left
+                </span>
                 <span className="text-muted-foreground">
-                  Leader: <span className="font-semibold text-foreground">{getPerson(leaderboard[0].id).name.split(" ")[0]}</span>
+                  Leader:{" "}
+                  <span className="font-semibold text-foreground">
+                    {getPerson(leaderboard[0].id).name.split(" ")[0]}
+                  </span>
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Podium */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {/* Podium — frosted glass */}
+          <div className="grid grid-cols-1 items-end gap-4 sm:grid-cols-3">
             <div className="sm:order-2">
-              <PodiumCard rank={1} id={leaderboard[0].id} value={leaderboard[0].value * rangeMultiplier} prize={podiumPrizes[0]} />
+              <PodiumCard
+                rank={1}
+                id={leaderboard[0].id}
+                value={leaderboard[0].value * rangeMultiplier}
+                prize={podiumPrizes[0]}
+              />
             </div>
             <div className="sm:order-1">
-              <PodiumCard rank={2} id={leaderboard[1].id} value={leaderboard[1].value * rangeMultiplier} prize={podiumPrizes[1]} />
+              <PodiumCard
+                rank={2}
+                id={leaderboard[1].id}
+                value={leaderboard[1].value * rangeMultiplier}
+                prize={podiumPrizes[1]}
+              />
             </div>
             <div className="sm:order-3">
-              <PodiumCard rank={3} id={leaderboard[2].id} value={leaderboard[2].value * rangeMultiplier} prize={podiumPrizes[2]} />
+              <PodiumCard
+                rank={3}
+                id={leaderboard[2].id}
+                value={leaderboard[2].value * rangeMultiplier}
+                prize={podiumPrizes[2]}
+              />
             </div>
           </div>
 
-          {/* Full ranking */}
-          <div className="rounded-2xl border border-border bg-surface p-5 shadow-soft">
-            <h2 className="text-[15px] font-semibold">Full ranking</h2>
-            <ul className="mt-3 flex flex-col">
+          {/* Full ranking — clean Apple list */}
+          <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-soft">
+            <div className="flex items-center justify-between border-b border-border-soft px-5 py-4">
+              <h2 className="text-[15px] font-semibold tracking-tight">Full ranking</h2>
+              <span className="text-xs text-muted-foreground">
+                {leaderboard.length} agents
+              </span>
+            </div>
+            <ul>
               {leaderboard.map((l, i) => {
                 const p = getPerson(l.id);
                 const max = leaderboard[0].value;
                 const pct = (l.value / max) * 100;
                 const value = l.value * rangeMultiplier;
+                const isTop3 = i < 3;
                 return (
                   <li
                     key={l.id}
-                    className="grid grid-cols-[36px_auto_1fr_140px_80px] items-center gap-4 border-t border-border-soft py-3.5 first:border-t-0 first:pt-0"
+                    className="grid grid-cols-[40px_auto_1fr_180px_90px] items-center gap-4 border-b border-border-soft px-5 py-4 last:border-b-0 transition hover:bg-surface-muted"
                   >
-                    <span className="grid h-7 w-7 place-items-center rounded-full bg-muted text-xs font-bold tabular-nums text-foreground/70">
+                    <span
+                      className={cn(
+                        "grid h-8 w-8 place-items-center rounded-full text-sm font-bold tabular-nums",
+                        i === 0 && "bg-amber-100 text-amber-700",
+                        i === 1 && "bg-zinc-100 text-zinc-700",
+                        i === 2 && "bg-orange-100 text-orange-700",
+                        !isTop3 && "bg-muted text-foreground/60",
+                      )}
+                    >
                       {i + 1}
                     </span>
                     <PersonAvatar person={p} size="sm" />
@@ -785,10 +858,17 @@ function CallCenterPage() {
                       <p className="text-xs text-muted-foreground">{p.role}</p>
                     </div>
                     <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                      <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all",
+                          i === 0 ? "bg-amber-400" : "bg-primary",
+                        )}
+                        style={{ width: `${pct}%` }}
+                      />
                     </div>
                     <span className="text-right text-sm font-semibold tabular-nums">
-                      {value} <span className="text-xs font-normal text-muted-foreground">appts</span>
+                      {value}{" "}
+                      <span className="text-xs font-normal text-muted-foreground">appts</span>
                     </span>
                   </li>
                 );
