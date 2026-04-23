@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import type { Person } from "@/data/people";
+import { getPerson, type Person } from "@/data/people";
 
 type Size = "xs" | "sm" | "md" | "lg";
 
@@ -45,8 +45,6 @@ export function AvatarStack({
   max?: number;
   extra?: number;
 }) {
-  // Lazy import to avoid circular
-  const { getPerson } = require("@/data/people") as typeof import("@/data/people");
   const visible = ids.slice(0, max);
   const overflow = extra ?? Math.max(ids.length - max, 0);
   return (
