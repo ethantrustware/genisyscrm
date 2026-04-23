@@ -6,11 +6,6 @@ import { Chip } from "@/components/ui/chip";
 import { getPerson, people } from "@/data/people";
 import { cn } from "@/lib/utils";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -368,8 +363,3 @@ function ClientsPage() {
     </div>
   );
 }
-
-// Suppress unused import warning when popover isn't used — keep for design parity.
-void Popover;
-void PopoverContent;
-void PopoverTrigger;
