@@ -2,26 +2,23 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import {
   Plus,
-  SlidersHorizontal,
   KanbanSquare,
   ListChecks,
   Check,
   ArrowRight,
   Calendar,
   X,
+  Users,
 } from "lucide-react";
 import { TopBar } from "@/components/layout/AppLayout";
 import { Chip } from "@/components/ui/chip";
 import { PersonAvatar } from "@/components/people/Avatar";
 import { KanbanBoard } from "@/components/tasks/KanbanBoard";
+import { DropdownPill } from "@/components/ui/dropdown-pill";
+import { DateRangePicker, defaultRange, type DateRange } from "@/components/ui/date-range-picker";
 import { allTasks, followUps, type Scope, type Owner, type KanbanTask } from "@/data/tasks";
 import { getPerson } from "@/data/people";
 import { cn } from "@/lib/utils";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
@@ -45,12 +42,6 @@ export const Route = createFileRoute("/_app/tasks")({
   component: TasksPage,
 });
 
-const stats = [
-  { label: "Meetings today", value: "6", sub: "4 clients", barColor: "bg-sky-400", pct: 50 },
-  { label: "Tasks to do", value: "3", sub: "of 5", barColor: "bg-orange-400", pct: 60 },
-  { label: "Team appts", value: "42", sub: "+12% vs yesterday", barColor: "bg-amber-400", pct: 78 },
-];
-
 const meetings = [
   { time: "9:30 AM", duration: "30 min", co: "Northwind Analytics", type: "Discovery", contact: "David Mehta, VP Revenue", agent: "sl" },
   { time: "10:15 AM", duration: "45 min", co: "Halcyon Health", type: "Demo", contact: "Elise Parisi, Head of Growth", agent: "ev" },
@@ -58,50 +49,23 @@ const meetings = [
   { time: "1:30 PM", duration: "45 min", co: "Lumen Logistics", type: "Demo", contact: "Margo Achterberg, COO", agent: "jw" },
 ];
 
-const SCOPES: { id: Scope; label: Scope }[] = [
-  { id: "Daily", label: "Daily" },
-  { id: "Weekly", label: "Weekly" },
-  { id: "Monthly", label: "Monthly" },
-  { id: "Quarterly", label: "Quarterly" },
-];
-const OWNERS: { id: Owner; label: string }[] = [
-  { id: "me", label: "My tasks" },
-  { id: "pod", label: "Pod tasks" },
-];
+const SCOPES = [
+  { id: "Daily" as Scope, label: "Daily" },
+  { id: "Weekly" as Scope, label: "Weekly" },
+  { id: "Monthly" as Scope, label: "Monthly" },
+  { id: "Quarterly" as Scope, label: "Quarterly" },
+] as const;
+
+const OWNERS = [
+  { id: "me" as Owner, label: "My tasks" },
+  { id: "pod" as Owner, label: "Pod tasks" },
+] as const;
+
 const VIEWS = [
-  { id: "checklist", label: "Checklist", icon: ListChecks },
-  { id: "kanban", label: "Kanban", icon: KanbanSquare },
+  { id: "checklist", label: "Checklist" },
+  { id: "kanban", label: "Kanban" },
 ] as const;
 type ViewId = (typeof VIEWS)[number]["id"];
-
-function SegmentedPills<T extends string>({
-  options,
-  value,
-  onChange,
-}: {
-  options: readonly { id: T; label: string }[];
-  value: T;
-  onChange: (v: T) => void;
-}) {
-  return (
-    <div className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-muted p-1">
-      {options.map((o) => (
-        <button
-          key={o.id}
-          onClick={() => onChange(o.id)}
-          className={cn(
-            "rounded-full px-3.5 py-1.5 text-xs font-semibold transition",
-            value === o.id
-              ? "bg-surface text-primary shadow-soft"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const [title, setTitle] = useState("");
@@ -149,67 +113,19 @@ function NewTaskDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
   );
 }
 
-function FilterPopover({
-  category,
-  setCategory,
-}: {
-  category: string;
-  setCategory: (c: string) => void;
-}) {
-  const cats = ["All", "SCRIPTS", "OPERATIONS", "ANALYSIS", "TEAM", "CLIENT", "REPORTING", "HR", "COACHING", "OPS"];
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm font-medium shadow-soft hover:bg-muted">
-          <SlidersHorizontal className="h-4 w-4" /> Filter
-          {category !== "All" && (
-            <Chip tone="blue" className="ml-1">
-              {category}
-            </Chip>
-          )}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-56 p-2" align="end">
-        <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Category</p>
-        <ul className="flex flex-col">
-          {cats.map((c) => (
-            <li key={c}>
-              <button
-                onClick={() => setCategory(c)}
-                className={cn(
-                  "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted",
-                  category === c && "bg-primary-soft text-primary",
-                )}
-              >
-                {c}
-                {category === c && <Check className="h-4 w-4" />}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 function TasksPage() {
-  const [scope, setScope] = useState<Scope>("Daily");
   const [owner, setOwner] = useState<Owner>("me");
+  const [scope, setScope] = useState<Scope>("Daily");
   const [view, setView] = useState<ViewId>("checklist");
-  const [category, setCategory] = useState("All");
+  const [range, setRange] = useState<DateRange>(() => defaultRange(7));
   const [newOpen, setNewOpen] = useState(false);
   const [doneIds, setDoneIds] = useState<Set<string>>(
     new Set(allTasks.filter((t) => t.column === "done").map((t) => t.id)),
   );
 
   const filtered = useMemo<KanbanTask[]>(() => {
-    return allTasks.filter(
-      (t) =>
-        t.owner === owner &&
-        t.scope === scope &&
-        (category === "All" || t.category === category),
-    );
-  }, [owner, scope, category]);
+    return allTasks.filter((t) => t.owner === owner && t.scope === scope);
+  }, [owner, scope]);
 
   const visibleTasks = filtered.map((t) => ({
     ...t,
@@ -225,7 +141,38 @@ function TasksPage() {
     });
   };
 
+  // Date-aware metric derivation. Range size scales the figures.
+  const dayCount = Math.max(
+    1,
+    Math.round((range.end.getTime() - range.start.getTime()) / 86_400_000) + 1,
+  );
+
   const remaining = visibleTasks.filter((t) => !doneIds.has(t.id)).length;
+  const completed = visibleTasks.length - remaining;
+
+  const stats = [
+    {
+      label: "Tasks completed",
+      value: String(completed * Math.max(1, Math.round(dayCount / 7))),
+      sub: `${remaining} open`,
+      barColor: "bg-emerald-500",
+      pct: visibleTasks.length ? (completed / visibleTasks.length) * 100 : 0,
+    },
+    {
+      label: "Meetings",
+      value: String(meetings.length * Math.max(1, Math.round(dayCount / 1))),
+      sub: `${dayCount} day${dayCount === 1 ? "" : "s"} window`,
+      barColor: "bg-sky-400",
+      pct: 64,
+    },
+    {
+      label: "Follow-ups due",
+      value: String(followUps.length),
+      sub: owner === "me" ? "assigned to you" : "across the pod",
+      barColor: "bg-amber-400",
+      pct: 78,
+    },
+  ];
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6">
@@ -241,6 +188,13 @@ function TasksPage() {
           </button>
         }
       />
+
+      {/* Filters above KPI cards */}
+      <div className="flex flex-wrap items-center gap-3">
+        <DropdownPill value={owner} options={OWNERS} onChange={setOwner} icon={Users} />
+        <DropdownPill value={scope} options={SCOPES} onChange={setScope} icon={Calendar} />
+        <DateRangePicker value={range} onChange={setRange} align="start" />
+      </div>
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -258,20 +212,17 @@ function TasksPage() {
         ))}
       </div>
 
-      {/* Tasks toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <SegmentedPills options={OWNERS} value={owner} onChange={setOwner} />
-          <SegmentedPills options={SCOPES} value={scope} onChange={setScope} />
-        </div>
-        <div className="flex items-center gap-2">
-          <FilterPopover category={category} setCategory={setCategory} />
-          <SegmentedPills
-            options={VIEWS.map((v) => ({ id: v.id, label: v.label }))}
-            value={view}
-            onChange={setView}
-          />
-        </div>
+      {/* View dropdown */}
+      <div className="flex items-center justify-between">
+        <DropdownPill
+          value={view}
+          options={VIEWS}
+          onChange={setView}
+          icon={view === "checklist" ? ListChecks : KanbanSquare}
+        />
+        <p className="text-xs text-muted-foreground">
+          {visibleTasks.length} task{visibleTasks.length === 1 ? "" : "s"} · {scope.toLowerCase()}
+        </p>
       </div>
 
       {/* Tasks view */}
@@ -353,10 +304,10 @@ function TasksPage() {
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-[20px] font-semibold tracking-tight">Next up</h2>
             <button
-              onClick={() => toast.info("Showing all 6 meetings")}
+              onClick={() => toast.info("Showing all meetings")}
               className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
             >
-              See all 6 <ArrowRight className="h-3.5 w-3.5" />
+              See all <ArrowRight className="h-3.5 w-3.5" />
             </button>
           </div>
           <ul className="flex flex-col gap-2">

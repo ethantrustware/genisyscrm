@@ -130,27 +130,27 @@ function Sidebar() {
         })}
       </nav>
 
-      {/* Pods */}
+      {/* Workspace totals */}
       <p className="mt-6 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Pods
+        Workspace
       </p>
-      <div className="flex flex-col">
+      <div className="mt-1 grid grid-cols-3 gap-2 px-1">
         {[
-          { name: "Aurora", count: 5, dot: "bg-sky-500" },
-          { name: "Meridian", count: 4, dot: "bg-rose-500" },
-          { name: "Solace", count: 3, dot: "bg-amber-500" },
-        ].map((p) => (
-          <button
-            key={p.name}
-            onClick={() => toast.info(`Filtering by ${p.name} pod`)}
-            className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-foreground/75 hover:bg-muted"
+          { label: "Pods", value: "3" },
+          { label: "Agents", value: "12" },
+          { label: "Appts", value: "318" },
+        ].map((s) => (
+          <div
+            key={s.label}
+            className="rounded-xl border border-border-soft bg-surface px-2 py-2 text-center shadow-soft"
           >
-            <span className="flex items-center gap-2.5">
-              <span className={cn("h-2 w-2 rounded-full", p.dot)} />
-              {p.name}
-            </span>
-            <span className="text-xs text-muted-foreground">{p.count}</span>
-          </button>
+            <p className="text-[15px] font-semibold tabular-nums leading-none text-foreground">
+              {s.value}
+            </p>
+            <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              {s.label}
+            </p>
+          </div>
         ))}
       </div>
 

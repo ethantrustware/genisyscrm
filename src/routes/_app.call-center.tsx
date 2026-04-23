@@ -11,6 +11,10 @@ import {
   TrendingUp,
   ChevronLeft,
   Check,
+  Crown,
+  Medal,
+  Award,
+  Sparkles,
 } from "lucide-react";
 import { TopBar } from "@/components/layout/AppLayout";
 import { Chip } from "@/components/ui/chip";
@@ -32,6 +36,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { DateRangePicker, defaultRange, type DateRange } from "@/components/ui/date-range-picker";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/call-center")({
@@ -87,7 +92,6 @@ type AgentRow = {
   dials: number;
   appts: number;
   show: string;
-  pipeline: string;
 };
 type Pod = { id: string; name: string; desc: string; dot: string; agents: AgentRow[] };
 
@@ -98,11 +102,11 @@ const podsData: Pod[] = [
     desc: "Enterprise SaaS · 5 members · Managed by Kenji Park",
     dot: "bg-sky-500",
     agents: [
-      { id: "sl", status: "on-call", dials: 142, appts: 9, show: "78%", pipeline: "$185K" },
-      { id: "mo", status: "available", dials: 118, appts: 11, show: "82%", pipeline: "$221K" },
-      { id: "rc", status: "offline", dials: 0, appts: 0, show: "0%", pipeline: "$0K" },
-      { id: "hr", status: "available", dials: 89, appts: 6, show: "68%", pipeline: "$92K" },
-      { id: "ta", status: "on-call", dials: 124, appts: 9, show: "77%", pipeline: "$156K" },
+      { id: "sl", status: "on-call", dials: 142, appts: 9, show: "78%" },
+      { id: "mo", status: "available", dials: 118, appts: 11, show: "82%" },
+      { id: "rc", status: "offline", dials: 0, appts: 0, show: "0%" },
+      { id: "hr", status: "available", dials: 89, appts: 6, show: "68%" },
+      { id: "ta", status: "on-call", dials: 124, appts: 9, show: "77%" },
     ],
   },
   {
@@ -111,10 +115,10 @@ const podsData: Pod[] = [
     desc: "Healthcare & Insurance · 4 members · Managed by Dana Wolcott",
     dot: "bg-rose-500",
     agents: [
-      { id: "ev", status: "available", dials: 96, appts: 7, show: "71%", pipeline: "$128K" },
-      { id: "jw", status: "on-call", dials: 88, appts: 5, show: "65%", pipeline: "$94K" },
-      { id: "pr", status: "break", dials: 71, appts: 4, show: "60%", pipeline: "$72K" },
-      { id: "yt", status: "available", dials: 102, appts: 6, show: "70%", pipeline: "$118K" },
+      { id: "ev", status: "available", dials: 96, appts: 7, show: "71%" },
+      { id: "jw", status: "on-call", dials: 88, appts: 5, show: "65%" },
+      { id: "pr", status: "break", dials: 71, appts: 4, show: "60%" },
+      { id: "yt", status: "available", dials: 102, appts: 6, show: "70%" },
     ],
   },
   {
@@ -123,8 +127,8 @@ const podsData: Pod[] = [
     desc: "FinTech & Financial Services · 3 members · Managed by Oluwaseun Adebayo",
     dot: "bg-amber-500",
     agents: [
-      { id: "dh", status: "on-call", dials: 110, appts: 8, show: "74%", pipeline: "$144K" },
-      { id: "nb", status: "available", dials: 92, appts: 5, show: "66%", pipeline: "$88K" },
+      { id: "dh", status: "on-call", dials: 110, appts: 8, show: "74%" },
+      { id: "nb", status: "available", dials: 92, appts: 5, show: "66%" },
     ],
   },
 ];
@@ -152,13 +156,13 @@ const eodReports = [
 ];
 
 const leaderboard = [
-  { id: "mo", value: 11, sub: "appts today" },
-  { id: "sl", value: 9, sub: "appts today" },
-  { id: "ta", value: 9, sub: "appts today" },
-  { id: "dh", value: 8, sub: "appts today" },
-  { id: "ev", value: 7, sub: "appts today" },
-  { id: "hr", value: 6, sub: "appts today" },
-  { id: "yt", value: 6, sub: "appts today" },
+  { id: "mo", value: 47 },
+  { id: "sl", value: 41 },
+  { id: "ta", value: 38 },
+  { id: "dh", value: 33 },
+  { id: "ev", value: 29 },
+  { id: "hr", value: 24 },
+  { id: "yt", value: 22 },
 ];
 
 function StatCard({
@@ -262,7 +266,7 @@ function PodAccordion({ pod, defaultOpen }: { pod: Pod; defaultOpen?: boolean })
             return (
               <li
                 key={a.id}
-                className="grid grid-cols-[minmax(0,1.4fr)_repeat(4,minmax(0,1fr))] items-center gap-4 border-t border-border-soft bg-surface-muted/40 px-5 py-3.5 first:border-t-0 hover:bg-surface-muted"
+                className="grid grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))] items-center gap-4 border-t border-border-soft bg-surface-muted/40 px-5 py-3.5 first:border-t-0 hover:bg-surface-muted"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="relative">
@@ -290,10 +294,6 @@ function PodAccordion({ pod, defaultOpen }: { pod: Pod; defaultOpen?: boolean })
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Show</p>
                   <p className="mt-0.5 text-sm font-semibold tabular-nums">{a.show}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Pipeline</p>
-                  <p className="mt-0.5 text-sm font-semibold tabular-nums text-emerald-600">{a.pipeline}</p>
                 </div>
               </li>
             );
@@ -432,16 +432,92 @@ function EodCalendar({
   );
 }
 
+function PodiumCard({
+  rank,
+  id,
+  value,
+  prize,
+}: {
+  rank: 1 | 2 | 3;
+  id: string;
+  value: number;
+  prize: string;
+}) {
+  const p = getPerson(id);
+  const meta = {
+    1: {
+      icon: Crown,
+      ring: "ring-amber-300",
+      bg: "from-amber-100 to-amber-50",
+      pill: "bg-amber-400 text-amber-950",
+      label: "1st",
+    },
+    2: {
+      icon: Medal,
+      ring: "ring-zinc-300",
+      bg: "from-zinc-100 to-zinc-50",
+      pill: "bg-zinc-300 text-zinc-900",
+      label: "2nd",
+    },
+    3: {
+      icon: Award,
+      ring: "ring-orange-300",
+      bg: "from-orange-100 to-orange-50",
+      pill: "bg-orange-400 text-orange-950",
+      label: "3rd",
+    },
+  }[rank];
+  const Icon = meta.icon;
+  return (
+    <div
+      className={cn(
+        "relative flex flex-col items-center rounded-2xl border border-border bg-gradient-to-b p-5 shadow-soft",
+        meta.bg,
+      )}
+    >
+      <span className={cn("absolute right-3 top-3 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase", meta.pill)}>
+        {meta.label}
+      </span>
+      <Icon
+        className={cn(
+          "mb-2 h-7 w-7",
+          rank === 1 ? "text-amber-500" : rank === 2 ? "text-zinc-500" : "text-orange-500",
+        )}
+        strokeWidth={2}
+      />
+      <div className={cn("rounded-full ring-4", meta.ring)}>
+        <PersonAvatar person={p} size="lg" />
+      </div>
+      <p className="mt-3 text-sm font-semibold text-foreground">{p.name}</p>
+      <p className="text-xs text-muted-foreground">{p.role}</p>
+      <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight text-foreground">{value}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">appts</p>
+      <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-surface/70 px-2.5 py-1 text-[11px] font-semibold text-foreground">
+        <Sparkles className="h-3 w-3 text-primary" /> {prize}
+      </div>
+    </div>
+  );
+}
+
 function CallCenterPage() {
   const [tab, setTab] = useState<TabId>("appointments");
   const [pod, setPod] = useState<PodFilter>("All pods");
   const [agentFilter, setAgentFilter] = useState<string>("all");
   const [callOpen, setCallOpen] = useState(false);
-  const [lbRange, setLbRange] = useState("Today");
+  const [range, setRange] = useState<DateRange>(() => defaultRange(30));
 
   const allAgents = useMemo(() => podsData.flatMap((p) => p.agents.map((a) => ({ ...a, pod: p.name }))), []);
 
   const multiplier = pod === "All pods" ? 1 : pod === "Aurora" ? 0.55 : pod === "Meridian" ? 0.3 : 0.15;
+
+  // Date-range scaling for stats / leaderboard.
+  const dayCount = Math.max(
+    1,
+    Math.round((range.end.getTime() - range.start.getTime()) / 86_400_000) + 1,
+  );
+  const rangeMultiplier = Math.max(1, Math.round(dayCount / 7));
+
+  const podiumPrizes = ["$200 bonus", "$100 bonus", "$50 bonus"];
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6">
@@ -482,75 +558,78 @@ function CallCenterPage() {
           })}
         </div>
 
-        <Popover>
-          <PopoverTrigger asChild>
-            <button className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm font-medium shadow-soft hover:bg-muted">
-              <SlidersHorizontal className="h-4 w-4" /> {pod}
-              {tab === "eod" && agentFilter !== "all" && (
-                <Chip tone="blue" className="ml-1">
-                  {getPerson(agentFilter).name.split(" ")[0]}
-                </Chip>
-              )}
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-60 p-2" align="end">
-            <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Pod</p>
-            <ul className="flex flex-col">
-              {podsList.map((p) => (
-                <li key={p}>
-                  <button
-                    onClick={() => setPod(p)}
-                    className={cn(
-                      "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted",
-                      pod === p && "bg-primary-soft text-primary",
-                    )}
-                  >
-                    {p}
-                    {pod === p && <Check className="h-4 w-4" />}
-                  </button>
-                </li>
-              ))}
-            </ul>
-            {tab === "eod" && (
-              <>
-                <p className="mt-2 border-t border-border-soft px-2 pt-2 pb-1.5 text-xs font-semibold text-muted-foreground">
-                  Agent
-                </p>
-                <ul className="flex max-h-48 flex-col overflow-y-auto">
-                  <li>
+        <div className="flex flex-wrap items-center gap-2">
+          <DateRangePicker value={range} onChange={setRange} />
+          <Popover>
+            <PopoverTrigger asChild>
+              <button className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-2 text-sm font-medium shadow-soft hover:bg-muted">
+                <SlidersHorizontal className="h-4 w-4" /> {pod}
+                {tab === "eod" && agentFilter !== "all" && (
+                  <Chip tone="blue" className="ml-1">
+                    {getPerson(agentFilter).name.split(" ")[0]}
+                  </Chip>
+                )}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-60 p-2" align="end">
+              <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Pod</p>
+              <ul className="flex flex-col">
+                {podsList.map((p) => (
+                  <li key={p}>
                     <button
-                      onClick={() => setAgentFilter("all")}
+                      onClick={() => setPod(p)}
                       className={cn(
                         "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted",
-                        agentFilter === "all" && "bg-primary-soft text-primary",
+                        pod === p && "bg-primary-soft text-primary",
                       )}
                     >
-                      All agents
-                      {agentFilter === "all" && <Check className="h-4 w-4" />}
+                      {p}
+                      {pod === p && <Check className="h-4 w-4" />}
                     </button>
                   </li>
-                  {allAgents.map((a) => {
-                    const p = getPerson(a.id);
-                    return (
-                      <li key={a.id}>
-                        <button
-                          onClick={() => setAgentFilter(a.id)}
-                          className={cn(
-                            "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted",
-                            agentFilter === a.id && "bg-primary-soft text-primary",
-                          )}
-                        >
-                          {p.name}
-                          {agentFilter === a.id && <Check className="h-4 w-4" />}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </>
-            )}
-          </PopoverContent>
-        </Popover>
+                ))}
+              </ul>
+              {tab === "eod" && (
+                <>
+                  <p className="mt-2 border-t border-border-soft px-2 pt-2 pb-1.5 text-xs font-semibold text-muted-foreground">
+                    Agent
+                  </p>
+                  <ul className="flex max-h-48 flex-col overflow-y-auto">
+                    <li>
+                      <button
+                        onClick={() => setAgentFilter("all")}
+                        className={cn(
+                          "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted",
+                          agentFilter === "all" && "bg-primary-soft text-primary",
+                        )}
+                      >
+                        All agents
+                        {agentFilter === "all" && <Check className="h-4 w-4" />}
+                      </button>
+                    </li>
+                    {allAgents.map((a) => {
+                      const p = getPerson(a.id);
+                      return (
+                        <li key={a.id}>
+                          <button
+                            onClick={() => setAgentFilter(a.id)}
+                            className={cn(
+                              "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted",
+                              agentFilter === a.id && "bg-primary-soft text-primary",
+                            )}
+                          >
+                            {p.name}
+                            {agentFilter === a.id && <Check className="h-4 w-4" />}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              )}
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
 
       {/* Stats — only on Appointments */}
@@ -565,7 +644,7 @@ function CallCenterPage() {
       {tab === "appointments" && (
         <section className="rounded-2xl border border-border bg-surface p-5 shadow-soft">
           <div className="flex items-center justify-between">
-            <h2 className="text-[17px] font-semibold">Appointments today</h2>
+            <h2 className="text-[17px] font-semibold">Appointments</h2>
             <Chip tone="blue">{appointments.length} scheduled</Chip>
           </div>
           <ul className="mt-4 flex flex-col">
@@ -646,53 +725,76 @@ function CallCenterPage() {
       {tab === "eod" && <EodCalendar podFilter={pod} agentFilter={agentFilter} />}
 
       {tab === "leaderboard" && (
-        <section className="rounded-2xl border border-border bg-surface p-5 shadow-soft">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[17px] font-semibold">Top performers</h2>
-            <div className="flex items-center gap-1 rounded-full border border-border bg-surface-muted p-1 text-xs">
-              {["Today", "7D", "30D", "QTD"].map((r) => (
-                <button
-                  key={r}
-                  onClick={() => setLbRange(r)}
-                  className={cn(
-                    "rounded-full px-3 py-1 font-medium transition",
-                    lbRange === r
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {r}
-                </button>
-              ))}
+        <section className="flex flex-col gap-6">
+          {/* Incentive banner */}
+          <div className="overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-r from-primary-soft via-surface to-amber-50 p-5 shadow-soft">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary text-primary-foreground">
+                  <Trophy className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-primary">
+                    Monthly challenge
+                  </p>
+                  <p className="text-base font-semibold">Top setter wins $200 · Runners-up $100 / $50</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <Chip tone="amber">9 days left</Chip>
+                <span className="text-muted-foreground">
+                  Leader: <span className="font-semibold text-foreground">{getPerson(leaderboard[0].id).name.split(" ")[0]}</span>
+                </span>
+              </div>
             </div>
           </div>
-          <ul className="mt-4 flex flex-col">
-            {leaderboard.map((l, i) => {
-              const p = getPerson(l.id);
-              const rankColor = ["text-amber-500", "text-zinc-400", "text-amber-700"][i] ?? "text-muted-foreground";
-              const max = leaderboard[0].value;
-              const pct = (l.value / max) * 100;
-              return (
-                <li
-                  key={l.id}
-                  className="grid grid-cols-[36px_auto_1fr_140px_80px] items-center gap-4 border-t border-border-soft py-4 first:border-t-0 first:pt-0"
-                >
-                  <span className={cn("text-lg font-bold tabular-nums", rankColor)}>{i + 1}</span>
-                  <PersonAvatar person={p} size="sm" />
-                  <div>
-                    <p className="text-sm font-semibold">{p.name}</p>
-                    <p className="text-xs text-muted-foreground">{p.role}</p>
-                  </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                    <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
-                  </div>
-                  <span className="text-right text-sm font-semibold tabular-nums">
-                    {l.value} <span className="text-xs font-normal text-muted-foreground">{l.sub.split(" ")[1]}</span>
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
+
+          {/* Podium */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="sm:order-2">
+              <PodiumCard rank={1} id={leaderboard[0].id} value={leaderboard[0].value * rangeMultiplier} prize={podiumPrizes[0]} />
+            </div>
+            <div className="sm:order-1">
+              <PodiumCard rank={2} id={leaderboard[1].id} value={leaderboard[1].value * rangeMultiplier} prize={podiumPrizes[1]} />
+            </div>
+            <div className="sm:order-3">
+              <PodiumCard rank={3} id={leaderboard[2].id} value={leaderboard[2].value * rangeMultiplier} prize={podiumPrizes[2]} />
+            </div>
+          </div>
+
+          {/* Full ranking */}
+          <div className="rounded-2xl border border-border bg-surface p-5 shadow-soft">
+            <h2 className="text-[15px] font-semibold">Full ranking</h2>
+            <ul className="mt-3 flex flex-col">
+              {leaderboard.map((l, i) => {
+                const p = getPerson(l.id);
+                const max = leaderboard[0].value;
+                const pct = (l.value / max) * 100;
+                const value = l.value * rangeMultiplier;
+                return (
+                  <li
+                    key={l.id}
+                    className="grid grid-cols-[36px_auto_1fr_140px_80px] items-center gap-4 border-t border-border-soft py-3.5 first:border-t-0 first:pt-0"
+                  >
+                    <span className="grid h-7 w-7 place-items-center rounded-full bg-muted text-xs font-bold tabular-nums text-foreground/70">
+                      {i + 1}
+                    </span>
+                    <PersonAvatar person={p} size="sm" />
+                    <div>
+                      <p className="text-sm font-semibold">{p.name}</p>
+                      <p className="text-xs text-muted-foreground">{p.role}</p>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-right text-sm font-semibold tabular-nums">
+                      {value} <span className="text-xs font-normal text-muted-foreground">appts</span>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         </section>
       )}
 
