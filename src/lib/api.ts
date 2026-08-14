@@ -344,6 +344,15 @@ export type Agent = {
   image: string | null
   appointmentCount: number
   lastBookingAt: string | null
+  createdAt?: string | null
+  approvedAt?: string | null
+  timezone?: string | null
+  phoneNumber?: string | null
+  servicingState?: string | null
+  hasPassword?: boolean
+  activeSessions?: number
+  lastSeenAt?: string | null
+  isSelf?: boolean
 }
 
 export type DocRow = {
@@ -448,10 +457,13 @@ const MOCK_TODAY: TodayData = {
 }
 
 const MOCK_AGENTS: Agent[] = [
-  { id: 'u1', name: 'Mary', email: 'mary@leadgenisys.com', role: 'agent', image: null, appointmentCount: 184, lastBookingAt: '2026-07-24T15:00:00.000Z' },
-  { id: 'u2', name: 'Hannah', email: 'hannah@leadgenisys.com', role: 'agent', image: null, appointmentCount: 96, lastBookingAt: '2026-07-23T18:00:00.000Z' },
-  { id: 'u3', name: 'Alex', email: 'alex@leadgenisys.com', role: 'admin', image: null, appointmentCount: 22, lastBookingAt: '2026-07-19T14:00:00.000Z' },
-  { id: 'u4', name: 'Ethan', email: 'ethan@leadgenisys.com', role: 'member', image: null, appointmentCount: 10, lastBookingAt: '2026-07-11T14:00:00.000Z' },
+  { id: 'u1', name: 'Alex Hyatt', email: 'alex@leadgenisys.com', role: 'admin', image: null, appointmentCount: 22, lastBookingAt: '2026-07-19T14:00:00.000Z', createdAt: '2025-11-02T14:00:00.000Z', timezone: 'America/New_York', hasPassword: true, activeSessions: 1, lastSeenAt: '2026-08-14T12:00:00.000Z', isSelf: true },
+  { id: 'u2', name: 'Ethan Thompson', email: 'ethan@leadgenisys.com', role: 'member', image: null, appointmentCount: 10, lastBookingAt: '2026-07-11T14:00:00.000Z', createdAt: '2025-12-01T14:00:00.000Z', timezone: 'America/New_York', hasPassword: true, activeSessions: 0, lastSeenAt: null },
+  { id: 'u3', name: 'Mary', email: 'mary@leadgenisys.com', role: 'agent', image: null, appointmentCount: 184, lastBookingAt: '2026-07-24T15:00:00.000Z', createdAt: '2026-01-15T14:00:00.000Z', timezone: 'Asia/Manila', servicingState: 'Arizona', hasPassword: true, activeSessions: 1, lastSeenAt: '2026-08-14T11:30:00.000Z' },
+  { id: 'u4', name: 'Hannah', email: 'hannah@leadgenisys.com', role: 'agent', image: null, appointmentCount: 96, lastBookingAt: '2026-07-23T18:00:00.000Z', createdAt: '2026-02-20T14:00:00.000Z', hasPassword: true, activeSessions: 0, lastSeenAt: null },
+  { id: 'u5', name: 'Devon Price', email: 'devon@example.com', role: 'crm_pending', image: null, appointmentCount: 0, lastBookingAt: null, createdAt: '2026-08-14T09:00:00.000Z', hasPassword: true, activeSessions: 0, lastSeenAt: null },
+  { id: 'u6', name: 'Sam Rivera', email: 'sam@example.com', role: 'crm_pending', image: null, appointmentCount: 0, lastBookingAt: null, createdAt: '2026-08-13T16:00:00.000Z', hasPassword: true, activeSessions: 0, lastSeenAt: null },
+  { id: 'u7', name: 'Old Contractor', email: 'old@example.com', role: 'agent_denied', image: null, appointmentCount: 3, lastBookingAt: '2026-03-02T14:00:00.000Z', createdAt: '2026-01-02T14:00:00.000Z', hasPassword: false, activeSessions: 0, lastSeenAt: null },
 ]
 
 const MOCK_DOCS: DocRow[] = [
@@ -920,8 +932,11 @@ export const createClient = (c: Record<string, unknown>) =>
 export const updateClient = (id: string, patch: Record<string, unknown>) =>
   write<{ id: string }>('/clients/manage', 'PATCH', { id, ...patch })
 
-export const updateAgent = (id: string, action: 'revoke' | 'restore') =>
-  write<{ id: string; role: string }>('/agents/manage', 'PATCH', { id, action })
+export const updateAgent = (p: {
+  id: string
+  action: string
+  role?: string
+}) => write<{ id: string; role?: string }>('/agents/manage', 'PATCH', p)
 
 export type CalendarAppt = {
   id: string
