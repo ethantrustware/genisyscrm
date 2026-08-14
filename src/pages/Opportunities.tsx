@@ -165,8 +165,14 @@ export default function Opportunities() {
 
   const activeSub = sub || pipes.data?.activeSubAccount || ''
   const pipelines = pipes.data?.pipelines ?? []
+  // Default to the contractor pipeline — it's the one the business runs
+  // on day to day, and GHL returns pipelines in creation order, which put
+  // an unrelated one first. Matched by name so renaming the pipeline in
+  // GHL doesn't silently break it back to whatever is first.
+  const defaultPipeline =
+    pipelines.find((p) => /contractor/i.test(p.name)) ?? pipelines[0]
   const activePipeline =
-    pipelines.find((p) => p.id === pipelineId) ?? pipelines[0]
+    pipelines.find((p) => p.id === pipelineId) ?? defaultPipeline
 
   const opps = useQuery({
     queryKey: ['opportunities', activeSub, activePipeline?.id],

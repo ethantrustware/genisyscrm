@@ -1144,8 +1144,13 @@ export async function fetchOpportunities(
 
 const MOCK_PIPELINES: Pipeline[] = [
   {
+    id: 'pl0',
+    name: 'Legacy Solar',
+    stages: [{ id: 'z1', name: 'Old stage', position: 0 }],
+  },
+  {
     id: 'pl1',
-    name: 'Contractor Onboarding',
+    name: 'Contractors (Cold Callers)',
     stages: [
       { id: 's1', name: 'New Lead', position: 0 },
       { id: 's2', name: 'Contacted', position: 1 },
