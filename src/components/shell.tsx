@@ -28,6 +28,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { usePrefs } from '@/lib/prefs'
 import {
   fetchCurrentUser,
   roleLabel,
@@ -57,7 +58,7 @@ const NAV = [
   { to: '/agents', label: 'Staff', icon: Users },
   { to: '/documents', label: 'Documents', icon: FolderOpen },
   { to: '/payments', label: 'Payments', icon: Wallet },
-  { to: '/connect', label: 'Connect', icon: Plug },
+  { to: '/connect', label: 'Settings', icon: Plug },
 ]
 
 function useTheme() {
@@ -100,6 +101,15 @@ function Sidebar({ mobileOpen }: { mobileOpen: boolean }) {
     staleTime: 60_000,
   })
 
+  const who = me.data?.user?.email ?? 'demo'
+  const { prefs } = usePrefs(who)
+
+  // Settings must never hide itself, or there is no way back to unhide
+  // anything — the only fix would be clearing site data.
+  const visibleNav = NAV.filter(
+    (item) => item.to === '/connect' || !prefs.hiddenTabs.includes(item.to),
+  )
+
   const handleSignOut = () => {
     signOut()
     navigate({ to: '/login' })
@@ -109,12 +119,16 @@ function Sidebar({ mobileOpen }: { mobileOpen: boolean }) {
 
   useEffect(() => {
     try {
-      setCollapsed(localStorage.getItem('sidebar-collapsed') === 'true')
+      const saved = localStorage.getItem('sidebar-collapsed')
+      // No explicit choice yet — fall back to the preference.
+      setCollapsed(
+        saved === null ? prefs.sidebarDefault === 'collapsed' : saved === 'true',
+      )
     } catch {
       /* ignore */
     }
     setHydrated(true)
-  }, [])
+  }, [prefs.sidebarDefault])
 
   useEffect(() => {
     if (!hydrated) return
@@ -181,7 +195,7 @@ function Sidebar({ mobileOpen }: { mobileOpen: boolean }) {
       )}
 
       <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto">
-        {NAV.map((item) => {
+        {visibleNav.map((item) => {
           const Icon = item.icon
           const active =
             item.to === '/' ? pathname === '/' : pathname.startsWith(item.to)

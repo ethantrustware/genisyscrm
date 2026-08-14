@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
-import Connect from '@/pages/Connect'
+import Settings from '@/pages/Settings'
 
+// URL stays /connect so existing links and bookmarks keep working.
 export const Route = createFileRoute('/_app/connect')({
-  component: Connect,
+  component: Settings,
 })

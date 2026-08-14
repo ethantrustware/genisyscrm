@@ -1,12 +1,23 @@
 import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, Loader2, Plug, ShieldAlert, Unplug } from 'lucide-react'
+import {
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  Loader2,
+  Plug,
+  ShieldAlert,
+  Unplug,
+} from 'lucide-react'
 import {
   DEFAULT_HUB,
   clearConnection,
   getConnection,
   setConnection,
+  fetchCurrentUser,
   testConnection,
+  useIsLive,
 } from '@/lib/api'
 import {
   Card,
@@ -17,6 +28,7 @@ import {
   inputCls,
 } from '@/components/ui'
 import { cn } from '@/lib/utils'
+import { usePrefs } from '@/lib/prefs'
 
 /**
  * Connect screen — swaps the app from demo data to the live Hub.
@@ -26,8 +38,35 @@ import { cn } from '@/lib/utils'
  * public and Lovable previews are shareable, so a bundled token would
  * be a published credential.
  */
-export default function Connect() {
+
+/**
+ * Tabs that can be hidden. Settings is deliberately not listed: hiding it
+ * would remove the only way back to unhide anything.
+ */
+const HIDEABLE_TABS = [
+  { to: '/', label: 'Dashboard' },
+  { to: '/today', label: 'Today' },
+  { to: '/inbox', label: 'Inbox' },
+  { to: '/calendar', label: 'Calendar' },
+  { to: '/crm', label: 'CRM' },
+  { to: '/opportunities', label: 'Opportunities' },
+  { to: '/clients', label: 'Clients' },
+  { to: '/agents', label: 'Staff' },
+  { to: '/documents', label: 'Documents' },
+  { to: '/payments', label: 'Payments' },
+]
+
+export default function Settings() {
   const queryClient = useQueryClient()
+  const live = useIsLive()
+  const me = useQuery({
+    queryKey: ['me'],
+    queryFn: fetchCurrentUser,
+    enabled: live,
+    staleTime: 60_000,
+  })
+  const who = me.data?.user?.email ?? 'demo'
+  const { prefs, update } = usePrefs(who)
 
   // Server-rendered: read storage after mount, never during render.
   const [existing, setExisting] = useState<ReturnType<
@@ -70,8 +109,8 @@ export default function Connect() {
   return (
     <div className="mx-auto flex max-w-[760px] flex-col gap-6">
       <PageHeader
-        title="Connect to the Hub"
-        breadcrumbs={[{ label: 'Genisys' }, { label: 'Connect' }]}
+        title="Settings"
+        breadcrumbs={[{ label: 'Genisys' }, { label: 'Settings' }]}
         subtitle="Point this frontend at the live Genisys Hub API. Without a connection it runs on demo data, which is what preview shows by default."
       />
 
@@ -167,6 +206,126 @@ export default function Connect() {
             )}
           </div>
         </div>
+      </Card>
+
+      {/* ---- Appearance ---- */}
+      <Card>
+        <SectionLabel>Appearance</SectionLabel>
+
+        <div className="flex flex-col gap-3">
+          <div>
+            <p className="text-sm font-medium">Sidebar</p>
+            <p className="mb-2 text-xs text-muted-foreground">
+              How the sidebar starts on a fresh browser. Collapsing it by hand
+              still wins for the rest of the session.
+            </p>
+            <div className="flex gap-1.5">
+              {(['expanded', 'collapsed'] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => update({ sidebarDefault: v })}
+                  className={cn(
+                    'rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition',
+                    prefs.sidebarDefault === v
+                      ? 'bg-primary-soft text-primary'
+                      : 'border border-border bg-card text-muted-foreground hover:bg-muted',
+                  )}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm font-medium">Density</p>
+            <p className="mb-2 text-xs text-muted-foreground">
+              Compact tightens list spacing.
+            </p>
+            <div className="flex gap-1.5">
+              {(['comfortable', 'compact'] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => update({ density: v })}
+                  className={cn(
+                    'rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition',
+                    prefs.density === v
+                      ? 'bg-primary-soft text-primary'
+                      : 'border border-border bg-card text-muted-foreground hover:bg-muted',
+                  )}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* ---- Tabs ---- */}
+      <Card>
+        <SectionLabel>Tabs</SectionLabel>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Hide sections you are not using. This is cosmetic and applies to your
+          account on this browser only — it tidies the sidebar, it does not
+          restrict access.
+        </p>
+
+        <ul className="flex flex-col">
+          {HIDEABLE_TABS.map((t) => {
+            const hidden = prefs.hiddenTabs.includes(t.to)
+            return (
+              <li
+                key={t.to}
+                className="flex items-center justify-between gap-3 border-b border-border-soft py-2.5 last:border-0"
+              >
+                <span
+                  className={cn(
+                    'text-sm',
+                    hidden && 'text-muted-foreground line-through',
+                  )}
+                >
+                  {t.label}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    update({
+                      hiddenTabs: hidden
+                        ? prefs.hiddenTabs.filter((x) => x !== t.to)
+                        : [...prefs.hiddenTabs, t.to],
+                    })
+                  }
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold transition hover:bg-muted"
+                >
+                  {hidden ? (
+                    <>
+                      <EyeOff className="h-3.5 w-3.5" />
+                      Hidden
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="h-3.5 w-3.5" />
+                      Visible
+                    </>
+                  )}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+
+        {prefs.hiddenTabs.length > 0 && (
+          <button
+            type="button"
+            onClick={() => update({ hiddenTabs: [] })}
+            className="mt-3 text-xs font-medium text-primary hover:underline"
+          >
+            Show all tabs
+          </button>
+        )}
       </Card>
 
       <Card>
