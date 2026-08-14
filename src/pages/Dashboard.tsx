@@ -101,7 +101,7 @@ export default function Dashboard() {
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold">Recent appointments</h2>
           <Link
-            to="/appointments"
+            to="/calendar"
             className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
           >
             View all <ArrowRight className="h-3 w-3" />
