@@ -34,7 +34,25 @@ export const Route = createRootRoute({
   }),
   shellComponent: RootShell,
   component: RootComponent,
+  notFoundComponent: NotFound,
 })
+
+function NotFound() {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-background px-4 text-center text-foreground">
+      <p className="text-[26px] font-semibold tracking-tight">Page not found</p>
+      <p className="max-w-sm text-sm text-muted-foreground">
+        That route doesn&apos;t exist in the CRM.
+      </p>
+      <a
+        href="/"
+        className="mt-2 inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-soft transition hover:bg-primary/90"
+      >
+        Back to dashboard
+      </a>
+    </div>
+  )
+}
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (

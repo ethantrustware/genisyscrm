@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Link, Outlet, useRouterState } from '@tanstack/react-router'
+import { Loader2 } from 'lucide-react'
+import {
+  Link,
+  Outlet,
+  useNavigate,
+  useRouterState,
+} from '@tanstack/react-router'
 import {
   Building2,
   CheckCircle2,
@@ -14,12 +20,13 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Phone,
+  LogOut,
   Plug,
   Sun,
   Wallet,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useIsLive } from '@/lib/api'
+import { sessionLabel, signOut, useAccess, useIsLive } from '@/lib/api'
 
 /**
  * App shell — a port of the Hub's sidebar + layout, class-for-class, so
@@ -67,8 +74,17 @@ function useTheme() {
 function Sidebar({ mobileOpen }: { mobileOpen: boolean }) {
   const [collapsed, setCollapsed] = useState(false)
   const [hydrated, setHydrated] = useState(false)
+  const [label, setLabel] = useState('Signed in')
   const { dark, toggle } = useTheme()
   const live = useIsLive()
+  const navigate = useNavigate()
+
+  useEffect(() => setLabel(sessionLabel()), [])
+
+  const handleSignOut = () => {
+    signOut()
+    navigate({ to: '/login' })
+  }
 
   const pathname = useRouterState({ select: (s) => s.location.pathname })
 
@@ -179,28 +195,33 @@ function Sidebar({ mobileOpen }: { mobileOpen: boolean }) {
         })}
       </nav>
 
-      {/* Data-source indicator — makes it obvious whether you're looking
-          at mock data or the real Hub. */}
+      {/* Session card — shows which data you're looking at, and signs out. */}
       {!collapsed && (
-        <Link
-          to="/connect"
-          className="mt-auto flex items-center gap-2.5 rounded-xl border border-border bg-surface px-3 py-2 shadow-soft transition hover:bg-muted"
-        >
+        <div className="mt-auto flex items-center gap-2.5 rounded-xl border border-border bg-surface px-3 py-2 shadow-soft">
           <span
             className={cn(
               'h-2 w-2 flex-shrink-0 rounded-full',
               live ? 'bg-emerald-500' : 'bg-amber-400',
             )}
           />
-          <div className="min-w-0 flex-1 text-left">
+          <Link to="/connect" className="min-w-0 flex-1 text-left">
             <p className="truncate text-sm font-semibold">
               {live ? 'Live data' : 'Demo data'}
             </p>
             <p className="truncate text-xs text-muted-foreground">
-              {live ? 'Connected to Hub' : 'Not connected'}
+              {live ? label : 'Sample data only'}
             </p>
-          </div>
-        </Link>
+          </Link>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            aria-label="Sign out"
+            title="Sign out"
+            className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+          </button>
+        </div>
       )}
     </aside>
   )
@@ -210,9 +231,25 @@ function Sidebar({ mobileOpen }: { mobileOpen: boolean }) {
 export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const { ready, mode } = useAccess()
+  const navigate = useNavigate()
 
   // Close the drawer on navigation.
   useEffect(() => setMobileOpen(false), [pathname])
+
+  // Gate: no session -> sign in. Deferred until `ready` because the
+  // server render can't see localStorage and would bounce everyone.
+  useEffect(() => {
+    if (ready && !mode) navigate({ to: '/login' })
+  }, [ready, mode, navigate])
+
+  if (!ready || !mode) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">

@@ -507,3 +507,80 @@ const MOCK_PAYMENTS: PaymentsData = {
     { id: 's2', amountCents: 60_000, method: 'standard', status: 'ok', createdAt: '2026-07-23T09:00:00.000Z' },
   ],
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Session                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Access model, stated plainly:
+ *
+ * The API token IS the credential. It is validated against the Hub before
+ * the app will let you in, and without it the Hub returns nothing — so
+ * this is a real gate, not a UI that merely hides content.
+ *
+ * "Demo" is an explicit second mode that grants access to mock data only.
+ * It exists so the UI can be designed and reviewed without handing out a
+ * credential that reads real client data.
+ */
+
+const LS_MODE = 'genisys.mode'
+
+export type Mode = 'live' | 'demo'
+
+export function getMode(): Mode | null {
+  try {
+    if (getConnection()) return 'live'
+    return localStorage.getItem(LS_MODE) === 'demo' ? 'demo' : null
+  } catch {
+    return null
+  }
+}
+
+export function enterDemoMode() {
+  try {
+    localStorage.setItem(LS_MODE, 'demo')
+  } catch {
+    /* storage blocked */
+  }
+}
+
+export function signOut() {
+  clearConnection()
+  try {
+    localStorage.removeItem(LS_MODE)
+  } catch {
+    /* storage blocked */
+  }
+}
+
+/** Name shown in the sidebar for the current session. */
+export function sessionLabel(): string {
+  try {
+    return localStorage.getItem('genisys.sessionName') || 'Signed in'
+  } catch {
+    return 'Signed in'
+  }
+}
+
+export function setSessionLabel(name: string) {
+  try {
+    localStorage.setItem('genisys.sessionName', name)
+  } catch {
+    /* storage blocked */
+  }
+}
+
+/**
+ * SSR-safe access check. The server has no localStorage, so it always
+ * reports "not ready"; the client resolves after mount. Gating on the
+ * server value instead would flash the login screen for signed-in users.
+ */
+export function useAccess(): { ready: boolean; mode: Mode | null } {
+  const [state, setState] = useState<{ ready: boolean; mode: Mode | null }>({
+    ready: false,
+    mode: null,
+  })
+  useEffect(() => setState({ ready: true, mode: getMode() }), [])
+  return state
+}
