@@ -4,6 +4,8 @@ import {
   Archive,
   Building2,
   CalendarDays,
+  ChevronDown,
+  ChevronRight,
   Mail,
   MapPin,
   Phone,
@@ -285,6 +287,8 @@ export default function Clients() {
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
+  // Folded by default — archived clients are history, not the working list.
+  const [archivedOpen, setArchivedOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const { data, isLoading, isError, error: qErr } = useQuery<Client[]>({
@@ -469,14 +473,26 @@ export default function Clients() {
 
           {archived.length > 0 && (
             <div className="mt-8">
-              <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <button
+                type="button"
+                onClick={() => setArchivedOpen((v) => !v)}
+                aria-expanded={archivedOpen}
+                className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition hover:text-foreground"
+              >
+                {archivedOpen ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
                 Archived · {archived.length}
-              </h3>
-              <ul>
-                {archived.map((c) => (
-                  <Row key={c.id} c={c} />
-                ))}
-              </ul>
+              </button>
+              {archivedOpen && (
+                <ul className="opacity-80">
+                  {archived.map((c) => (
+                    <Row key={c.id} c={c} />
+                  ))}
+                </ul>
+              )}
             </div>
           )}
         </div>
