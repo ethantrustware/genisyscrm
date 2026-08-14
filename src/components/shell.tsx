@@ -2,15 +2,21 @@ import { useEffect, useState } from 'react'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import {
   Building2,
-  CalendarCheck,
+  CheckCircle2,
   ChevronRight,
+  FolderOpen,
+  Headphones,
+  Inbox,
   LayoutGrid,
+  ListChecks,
   Menu,
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
+  Phone,
   Plug,
   Sun,
+  Wallet,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useIsLive } from '@/lib/api'
@@ -26,8 +32,14 @@ import { useIsLive } from '@/lib/api'
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutGrid },
+  { to: '/today', label: 'Today', icon: CheckCircle2 },
+  { to: '/inbox', label: 'Inbox', icon: Inbox },
+  { to: '/appointments', label: 'Call Center', icon: Phone },
+  { to: '/leads', label: 'Leads', icon: ListChecks },
   { to: '/clients', label: 'Clients', icon: Building2 },
-  { to: '/appointments', label: 'Appointments', icon: CalendarCheck },
+  { to: '/agents', label: 'Agents', icon: Headphones },
+  { to: '/documents', label: 'Documents', icon: FolderOpen },
+  { to: '/payments', label: 'Payments', icon: Wallet },
   { to: '/connect', label: 'Connect', icon: Plug },
 ]
 

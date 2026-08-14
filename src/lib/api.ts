@@ -308,3 +308,202 @@ const MOCK_APPOINTMENTS: Appointment[] = [
   mockAppt(8, 'Owen Bryant', MOCK_CLIENTS[3], 'booked', 'needs_review', 'Tarrant', '$205'),
   mockAppt(9, 'Camila Ortiz', MOCK_CLIENTS[1], 'cancelled', 'not_dispatched', 'Davis', '$150'),
 ]
+
+/* -------------------------------------------------------------------------- */
+/*  Additional sections                                                       */
+/* -------------------------------------------------------------------------- */
+
+export type TodayData = {
+  counts: { openTasks: number; appointmentsToday: number }
+  tasks: Array<{
+    id: string
+    title: string
+    notes: string | null
+    dueAt: string | null
+    priority: string
+    done: boolean
+    owner: string | null
+  }>
+  appointments: Array<{
+    id: string
+    apptDateTime: string
+    customerName: string
+    customerPhone: string | null
+    status: string
+    dispatchStatus: string
+    clientName: string | null
+    clientColor: string | null
+  }>
+}
+
+export type Agent = {
+  id: string
+  name: string | null
+  email: string | null
+  role: string
+  image: string | null
+  appointmentCount: number
+  lastBookingAt: string | null
+}
+
+export type LeadRow = {
+  id: string
+  name: string | null
+  email: string | null
+  phone: string | null
+  company: string | null
+  serviceType: string | null
+  zip: string | null
+  status: string
+  source: string
+  createdAt: string
+}
+
+export type DocRow = {
+  id: string
+  filename: string
+  mimeType: string
+  sizeBytes: number
+  folderName: string | null
+  uploadedBy: string | null
+  createdAt: string
+}
+
+export type InboxRow = {
+  id: string
+  from: string
+  fromName: string | null
+  subject: string
+  snippet: string | null
+  date: string
+  isRead: boolean
+  isLead: boolean
+  category: string | null
+  folder: string
+}
+
+export type PaymentsData = {
+  week: {
+    chargedCents: number
+    costCents: number
+    marginCents: number
+    leadCount: number
+  }
+  clients: Array<{
+    id: string
+    clientName: string
+    contactName: string | null
+    pricePerLeadCents: number
+    costPerLeadCents: number
+    weeklyCapCents: number
+    active: boolean
+    hasStripeId: boolean
+    weekSpentCents: number
+  }>
+  leads: Array<{
+    id: string
+    leadId: string
+    name: string | null
+    phone: string | null
+    address: string | null
+    clientName: string | null
+    amountCents: number
+    chargeStatus: string
+    failureReason: string | null
+    receivedAt: string
+  }>
+  sweeps: Array<{
+    id: string
+    amountCents: number
+    method: string
+    status: string
+    createdAt: string
+  }>
+}
+
+export async function fetchToday(): Promise<TodayData> {
+  if (!isLive()) return MOCK_TODAY
+  return get<TodayData>('/today')
+}
+export async function fetchAgents(): Promise<Agent[]> {
+  if (!isLive()) return MOCK_AGENTS
+  return get<Agent[]>('/agents')
+}
+export async function fetchLeads(): Promise<LeadRow[]> {
+  if (!isLive()) return MOCK_LEADS
+  return get<LeadRow[]>('/leads')
+}
+export async function fetchDocuments(): Promise<DocRow[]> {
+  if (!isLive()) return MOCK_DOCS
+  return get<DocRow[]>('/documents')
+}
+export async function fetchInbox(): Promise<InboxRow[]> {
+  if (!isLive()) return MOCK_INBOX
+  return get<InboxRow[]>('/inbox')
+}
+export async function fetchPayments(): Promise<PaymentsData> {
+  if (!isLive()) return MOCK_PAYMENTS
+  return get<PaymentsData>('/payments')
+}
+
+/* ---- mocks ---- */
+
+const MOCK_TODAY: TodayData = {
+  counts: { openTasks: 7, appointmentsToday: 4 },
+  tasks: [
+    { id: 't1', title: 'Confirm Bethany roofing invoice', notes: null, dueAt: '2026-07-24T17:00:00.000Z', priority: 'high', done: false, owner: 'Alex' },
+    { id: 't2', title: 'Review no-show follow-ups', notes: 'Brighton + Spring', dueAt: '2026-07-24T20:00:00.000Z', priority: 'medium', done: false, owner: 'Mary' },
+    { id: 't3', title: 'Update dispatch SOP doc', notes: null, dueAt: null, priority: 'low', done: false, owner: 'Ethan' },
+    { id: 't4', title: 'Weekly reconciliation', notes: 'Stripe vs Mercury', dueAt: '2026-07-25T16:00:00.000Z', priority: 'high', done: true, owner: 'Alex' },
+  ],
+  appointments: [
+    { id: 'a1', apptDateTime: '2026-07-24T17:00:00.000Z', customerName: 'Jordan Blake', customerPhone: '(...) ...-1007', status: 'booked', dispatchStatus: 'confirmed', clientName: 'Brighton Solar', clientColor: '#3b82f6' },
+    { id: 'a2', apptDateTime: '2026-07-24T19:30:00.000Z', customerName: 'Nina Patel', customerPhone: '(...) ...-1021', status: 'booked', dispatchStatus: 'dispatched', clientName: 'Energy Upgrade', clientColor: '#8b5cf6' },
+    { id: 'a3', apptDateTime: '2026-07-24T21:00:00.000Z', customerName: 'Marcus Hall', customerPhone: '(...) ...-1035', status: 'booked', dispatchStatus: 'not_dispatched', clientName: 'Forever Lit Solar', clientColor: '#f59e0b' },
+    { id: 'a4', apptDateTime: '2026-07-24T23:00:00.000Z', customerName: 'Grace Lin', customerPhone: '(...) ...-1049', status: 'rescheduled', dispatchStatus: 'reschedule_requested', clientName: 'Spring Solar', clientColor: '#10b981' },
+  ],
+}
+
+const MOCK_AGENTS: Agent[] = [
+  { id: 'u1', name: 'Mary', email: 'mary@leadgenisys.com', role: 'agent', image: null, appointmentCount: 184, lastBookingAt: '2026-07-24T15:00:00.000Z' },
+  { id: 'u2', name: 'Hannah', email: 'hannah@leadgenisys.com', role: 'agent', image: null, appointmentCount: 96, lastBookingAt: '2026-07-23T18:00:00.000Z' },
+  { id: 'u3', name: 'Alex', email: 'alex@leadgenisys.com', role: 'admin', image: null, appointmentCount: 22, lastBookingAt: '2026-07-19T14:00:00.000Z' },
+  { id: 'u4', name: 'Ethan', email: 'ethan@leadgenisys.com', role: 'member', image: null, appointmentCount: 10, lastBookingAt: '2026-07-11T14:00:00.000Z' },
+]
+
+const MOCK_LEADS: LeadRow[] = [
+  { id: 'l1', name: 'Dana Whitmore', email: 'da...@example.com', phone: '(...) ...-2201', company: null, serviceType: 'solar', zip: '85021', status: 'new', source: 'web_form', createdAt: '2026-07-24T14:00:00.000Z' },
+  { id: 'l2', name: 'Victor Reyes', email: 'vi...@example.com', phone: '(...) ...-2245', company: 'Reyes HVAC', serviceType: 'roofing', zip: '75204', status: 'contacted', source: 'nct_media', createdAt: '2026-07-23T18:30:00.000Z' },
+  { id: 'l3', name: 'Simone Clark', email: 'si...@example.com', phone: '(...) ...-2288', company: null, serviceType: 'solar', zip: '84101', status: 'qualified', source: 'referral', createdAt: '2026-07-22T16:15:00.000Z' },
+  { id: 'l4', name: 'Andre Boyd', email: 'an...@example.com', phone: '(...) ...-2310', company: null, serviceType: 'roofing', zip: '85281', status: 'unqualified', source: 'nct_media', createdAt: '2026-07-21T19:45:00.000Z' },
+]
+
+const MOCK_DOCS: DocRow[] = [
+  { id: 'd1', filename: 'NCT-Roofing-Billing-SOP.pdf', mimeType: 'application/pdf', sizeBytes: 284_120, folderName: 'SOPs', uploadedBy: 'Alex', createdAt: '2026-07-20T18:00:00.000Z' },
+  { id: 'd2', filename: 'Brighton-Contract-2026.pdf', mimeType: 'application/pdf', sizeBytes: 512_990, folderName: 'Contracts', uploadedBy: 'Alex', createdAt: '2026-06-02T18:00:00.000Z' },
+  { id: 'd3', filename: 'agent-onboarding.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', sizeBytes: 88_400, folderName: 'Training', uploadedBy: 'Mary', createdAt: '2026-05-14T18:00:00.000Z' },
+  { id: 'd4', filename: 'dispatch-flow.png', mimeType: 'image/png', sizeBytes: 1_204_338, folderName: 'SOPs', uploadedBy: 'Ethan', createdAt: '2026-04-30T18:00:00.000Z' },
+]
+
+const MOCK_INBOX: InboxRow[] = [
+  { id: 'e1', from: 'bethany@foreverlit.example', fromName: 'Bethany Wiggins', subject: 'Re: roofing lead billing', snippet: 'That works - go ahead and start sending them through.', date: '2026-07-24T13:20:00.000Z', isRead: false, isLead: false, category: 'client', folder: 'inbox' },
+  { id: 'e2', from: 'ops@nctmedia.example', fromName: 'NCT Media', subject: 'Webhook integration confirmed', snippet: 'We have the endpoint configured on our side and will begin...', date: '2026-07-24T11:05:00.000Z', isRead: true, isLead: false, category: 'partner', folder: 'inbox' },
+  { id: 'e3', from: 'newlead@example.com', fromName: null, subject: 'Interested in solar quote', snippet: 'Hi, I saw your ad and wanted to know more about pricing for...', date: '2026-07-23T22:40:00.000Z', isRead: false, isLead: true, category: 'lead', folder: 'inbox' },
+  { id: 'e4', from: 'david@brightonsolar.example', fromName: 'David Mehta', subject: 'Weekly numbers', snippet: 'Can you send over the show-rate breakdown for last week?', date: '2026-07-23T16:10:00.000Z', isRead: true, isLead: false, category: 'client', folder: 'inbox' },
+]
+
+const MOCK_PAYMENTS: PaymentsData = {
+  week: { chargedCents: 90_000, costCents: 66_000, marginCents: 24_000, leadCount: 6 },
+  clients: [
+    { id: 'n1', clientName: 'Forever Lit Solar LLC', contactName: 'Bethany Wiggins', pricePerLeadCents: 15_000, costPerLeadCents: 11_000, weeklyCapCents: 180_000, active: true, hasStripeId: true, weekSpentCents: 90_000 },
+  ],
+  leads: [
+    { id: 'p1', leadId: 'NCT-10482', name: 'Jane Doe', phone: '(...) ...-4567', address: '123 Main St, Dallas TX', clientName: 'Forever Lit Solar LLC', amountCents: 15_000, chargeStatus: 'charged', failureReason: null, receivedAt: '2026-07-24T15:02:00.000Z' },
+    { id: 'p2', leadId: 'NCT-10481', name: 'Robert Yi', phone: '(...) ...-4590', address: '88 Oak Ave, Plano TX', clientName: 'Forever Lit Solar LLC', amountCents: 15_000, chargeStatus: 'charged', failureReason: null, receivedAt: '2026-07-24T12:40:00.000Z' },
+    { id: 'p3', leadId: 'NCT-10480', name: 'Maria Santos', phone: '(...) ...-4612', address: '9 Pine Rd, Irving TX', clientName: 'Forever Lit Solar LLC', amountCents: 15_000, chargeStatus: 'failed', failureReason: 'Card declined - insufficient funds.', receivedAt: '2026-07-23T20:15:00.000Z' },
+  ],
+  sweeps: [
+    { id: 's1', amountCents: 74_500, method: 'standard', status: 'ok', createdAt: '2026-07-24T09:00:00.000Z' },
+    { id: 's2', amountCents: 60_000, method: 'standard', status: 'ok', createdAt: '2026-07-23T09:00:00.000Z' },
+  ],
+}
