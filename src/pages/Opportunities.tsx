@@ -584,6 +584,11 @@ export default function Opportunities() {
                             )}
                             <Link
                               to="/crm"
+                              search={{
+                                contactId: o.contactId ?? undefined,
+                                subAccount: activeSub,
+                                contactName: o.contactName ?? undefined,
+                              }}
                               onClick={(e) => e.stopPropagation()}
                               title="View conversations"
                               className="grid h-6 w-6 place-items-center rounded-md text-muted-foreground transition hover:bg-card hover:text-primary"

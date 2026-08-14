@@ -1311,3 +1311,59 @@ export async function addOpportunityNote(input: {
 }): Promise<{ contactId: string; saved: boolean }> {
   return write('/opportunities/note', 'POST', input)
 }
+
+export type FoundConversation = {
+  found: boolean
+  subAccount: string | null
+  conversation: CrmConversation | null
+}
+
+/**
+ * Resolve a contact to their existing conversation.
+ *
+ * `found: false` is a real answer, not an error — it means "never
+ * messaged", which is what tells the UI to offer a compose box instead of
+ * an empty thread.
+ */
+export async function findConversation(
+  contactId: string,
+  subAccount?: string,
+): Promise<FoundConversation> {
+  if (!isLive()) {
+    return { found: false, subAccount: subAccount ?? null, conversation: null }
+  }
+  const q = new URLSearchParams({ contactId })
+  if (subAccount) q.set('subAccount', subAccount)
+  return get(`/crm/find-conversation?${q.toString()}`)
+}
+
+/** Send the first message to a contact who has no conversation yet. */
+export async function startConversation(input: {
+  subAccount: string
+  contactId: string
+  message: string
+  type: 'SMS' | 'Email'
+}): Promise<{ ok: boolean; conversationId?: string | null; error?: string }> {
+  const conn = getConnection()
+  if (!conn) {
+    return { ok: false, error: 'Sign in to send messages.' }
+  }
+  try {
+    const res = await fetch(`${conn.base}/api/external/v1/crm/send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${conn.token}`,
+      },
+      body: JSON.stringify(input),
+    })
+    const d = (await res.json().catch(() => ({}))) as {
+      error?: string
+      conversationId?: string | null
+    }
+    if (!res.ok) return { ok: false, error: d.error ?? 'Send failed.' }
+    return { ok: true, conversationId: d.conversationId ?? null }
+  } catch {
+    return { ok: false, error: 'Could not reach the Hub.' }
+  }
+}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertCircle,
@@ -8,13 +8,16 @@ import {
   Phone,
   Search,
   Send,
+  UserPlus,
   X,
 } from 'lucide-react'
 import {
   fetchConversations,
   fetchSubAccounts,
   fetchThread,
+  findConversation,
   sendCrmMessage,
+  startConversation,
   useIsLive,
   type CrmConversation,
   type CrmGroup,
@@ -380,13 +383,151 @@ function Thread({
   )
 }
 
+
+/**
+ * Compose panel for a contact who has never been messaged.
+ *
+ * Shown instead of an empty thread when the lookup reports found:false.
+ * Landing on a blank CRM with no way to start was the whole complaint —
+ * the absence of a conversation is a reason to offer one, not to show
+ * nothing.
+ */
+function StartConversation({
+  contactId,
+  subAccount,
+  contactName,
+  onStarted,
+}: {
+  contactId: string
+  subAccount: string
+  contactName: string | null
+  onStarted: (conversationId: string | null) => void
+}) {
+  const [text, setText] = useState('')
+  const [type, setType] = useState<'SMS' | 'Email'>('SMS')
+  const [error, setError] = useState<string | null>(null)
+
+  const send = useMutation({
+    mutationFn: async () => {
+      const r = await startConversation({
+        subAccount,
+        contactId,
+        message: text.trim(),
+        type,
+      })
+      if (!r.ok) throw new Error(r.error ?? 'Send failed.')
+      return r.conversationId ?? null
+    },
+    onSuccess: (id) => {
+      setText('')
+      setError(null)
+      onStarted(id)
+    },
+    onError: (e) =>
+      setError(e instanceof Error ? e.message : 'Could not send.'),
+  })
+
+  return (
+    <div className="flex h-full flex-col items-center justify-center p-6">
+      <div className="w-full max-w-sm text-center">
+        <div className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full bg-primary-soft text-primary">
+          <UserPlus className="h-5 w-5" />
+        </div>
+        <p className="text-sm font-semibold">
+          No conversation with {contactName ?? 'this contact'} yet
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Send the first message and the thread starts here.
+        </p>
+
+        <div className="mt-4 flex items-center justify-center gap-1.5">
+          {(['SMS', 'Email'] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setType(t)}
+              className={cn(
+                'rounded-full px-2.5 py-1 text-[11px] font-semibold transition',
+                type === t
+                  ? 'bg-primary-soft text-primary'
+                  : 'text-muted-foreground hover:bg-muted',
+              )}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={3}
+          placeholder={`Write the first ${type}…`}
+          className="mt-2 w-full resize-y rounded-xl border border-border bg-card px-3 py-2 text-left text-sm focus:border-primary focus:outline-none"
+        />
+
+        {error && (
+          <p className="mt-2 rounded-lg border border-destructive/30 bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive">
+            {error}
+          </p>
+        )}
+
+        <button
+          type="button"
+          disabled={!text.trim() || send.isPending}
+          onClick={() => send.mutate()}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-soft transition hover:bg-primary/90 disabled:opacity-40"
+        >
+          {send.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Send className="h-4 w-4" />
+          )}
+          Start conversation
+        </button>
+
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          Goes to the customer immediately.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 export default function Crm() {
+  const queryClient = useQueryClient()
   const live = useIsLive()
   const [sub, setSub] = useState<string>('')
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<{
     subAccount: string
     id: string
+  } | null>(null)
+  // Arriving from an opportunity card: ?contactId=…&subAccount=…
+  //
+  // Read straight off the URL rather than through the router's typed
+  // search. Typed search needs validateSearch declared on the route and
+  // silently yields an empty object when it isn't — the params are right
+  // there in the address bar while the component sees nothing, which is a
+  // miserable thing to debug. This works regardless of route config.
+  const [search, setSearch] = useState<{
+    contactId?: string
+    subAccount?: string
+    contactName?: string
+  }>({})
+
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    setSearch({
+      contactId: p.get('contactId') ?? undefined,
+      subAccount: p.get('subAccount') ?? undefined,
+      contactName: p.get('contactName') ?? undefined,
+    })
+  }, [])
+  const [startFor, setStartFor] = useState<{
+    contactId: string
+    subAccount: string
+    name: string | null
   } | null>(null)
 
   const subs = useQuery({
@@ -403,6 +544,31 @@ export default function Crm() {
     queryFn: () => fetchConversations(active),
     enabled: !!active,
   })
+
+  // Resolve a deep-linked contact once the sub-accounts are known.
+  const lookup = useQuery({
+    queryKey: ['find-conversation', search.contactId, search.subAccount],
+    queryFn: () => findConversation(search.contactId!, search.subAccount),
+    enabled: !!search.contactId,
+  })
+
+  useEffect(() => {
+    if (!search.contactId || !lookup.data) return
+    if (lookup.data.found && lookup.data.conversation) {
+      setSelected({
+        subAccount: lookup.data.subAccount ?? active,
+        id: lookup.data.conversation.id,
+      })
+      setStartFor(null)
+    } else {
+      // Never messaged — offer to start rather than showing a blank pane.
+      setStartFor({
+        contactId: search.contactId,
+        subAccount: lookup.data.subAccount ?? search.subAccount ?? active,
+        name: search.contactName ?? null,
+      })
+    }
+  }, [search.contactId, search.contactName, search.subAccount, lookup.data, active])
 
   if (subs.isLoading) return <Loading />
   if (subs.isError)
@@ -508,6 +674,19 @@ export default function Crm() {
               subAccount={selected.subAccount}
               convId={selected.id}
               live={live}
+            />
+          ) : startFor ? (
+            <StartConversation
+              contactId={startFor.contactId}
+              subAccount={startFor.subAccount}
+              contactName={startFor.name}
+              onStarted={(id) => {
+                setStartFor(null)
+                if (id) setSelected({ subAccount: startFor.subAccount, id })
+                queryClient.invalidateQueries({
+                  queryKey: ['crm-conversations'],
+                })
+              }}
             />
           ) : (
             <div className="flex h-full min-h-[300px] items-center justify-center p-8 text-center">
