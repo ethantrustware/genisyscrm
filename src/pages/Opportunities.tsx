@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertCircle,
   Building2,
+  GripVertical,
   KanbanSquare,
   Mail,
   Phone,
@@ -12,6 +13,7 @@ import {
 import {
   fetchOpportunities,
   fetchPipelines,
+  moveOpportunity,
   useIsLive,
   type Opportunity,
 } from '@/lib/api'
@@ -145,7 +147,7 @@ function OpportunityDetail({
         </ul>
 
         <p className="border-t border-border-soft pt-3 text-[11px] text-muted-foreground">
-          Read-only view. Stage changes are made in GoHighLevel.
+          Drag a card on the board to change its stage. Other fields are edited in GoHighLevel.
         </p>
       </div>
     </div>
@@ -157,6 +159,10 @@ export default function Opportunities() {
   const [sub, setSub] = useState('')
   const [pipelineId, setPipelineId] = useState('')
   const [openId, setOpenId] = useState<string | null>(null)
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [overStage, setOverStage] = useState<string | null>(null)
+  const [moveError, setMoveError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
 
   const pipes = useQuery({
     queryKey: ['pipelines', sub],
@@ -174,10 +180,52 @@ export default function Opportunities() {
   const activePipeline =
     pipelines.find((p) => p.id === pipelineId) ?? defaultPipeline
 
+  const oppsKey = ['opportunities', activeSub, activePipeline?.id]
+
   const opps = useQuery({
-    queryKey: ['opportunities', activeSub, activePipeline?.id],
+    queryKey: oppsKey,
     queryFn: () => fetchOpportunities(activeSub, activePipeline?.id ?? ''),
     enabled: !!activePipeline,
+  })
+
+  /**
+   * Optimistic move: the card jumps immediately, because waiting on a
+   * round-trip to GHL makes the board feel broken. If the write fails the
+   * previous state is restored and the reason is shown, so a silent
+   * revert never looks like a successful move.
+   */
+  const move = useMutation({
+    mutationFn: (v: { opportunityId: string; stageId: string }) =>
+      moveOpportunity({
+        subAccount: activeSub,
+        pipelineId: activePipeline?.id ?? '',
+        ...v,
+      }),
+    onMutate: async (v) => {
+      setMoveError(null)
+      await queryClient.cancelQueries({ queryKey: oppsKey })
+      const previous = queryClient.getQueryData(oppsKey)
+      queryClient.setQueryData(
+        oppsKey,
+        (old: { opportunities: Opportunity[] } | undefined) =>
+          old
+            ? {
+                ...old,
+                opportunities: old.opportunities.map((o) =>
+                  o.id === v.opportunityId ? { ...o, stageId: v.stageId } : o,
+                ),
+              }
+            : old,
+      )
+      return { previous }
+    },
+    onError: (err, _v, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(oppsKey, ctx.previous)
+      setMoveError(
+        err instanceof Error ? err.message : 'Could not move that card.',
+      )
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: oppsKey }),
   })
 
   if (pipes.isLoading) return <Loading />
@@ -270,8 +318,21 @@ export default function Opportunities() {
 
         <span className="text-xs text-muted-foreground">
           {stages.length} stage{stages.length === 1 ? '' : 's'}
+          {live
+            ? ' · drag a card to move it'
+            : ' · sign in to move cards'}
         </span>
       </div>
+
+      {moveError && (
+        <div className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <span className="flex-1">{moveError}</span>
+          <button type="button" onClick={() => setMoveError(null)}>
+            <X className="h-4 w-4 opacity-60 hover:opacity-100" />
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <SummaryCard label="Opportunities" value={list.length} />
@@ -306,7 +367,31 @@ export default function Opportunities() {
               return (
                 <div
                   key={st.id}
-                  className="flex w-[236px] flex-shrink-0 flex-col rounded-2xl border border-border bg-card"
+                  onDragOver={(e) => {
+                    if (!live || !dragId) return
+                    // Without preventDefault the browser refuses the drop.
+                    e.preventDefault()
+                    setOverStage(st.id)
+                  }}
+                  onDragLeave={() =>
+                    setOverStage((cur) => (cur === st.id ? null : cur))
+                  }
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    setOverStage(null)
+                    const id = e.dataTransfer.getData('text/plain') || dragId
+                    setDragId(null)
+                    if (!live || !id) return
+                    const card = list.find((o) => o.id === id)
+                    if (!card || card.stageId === st.id) return
+                    move.mutate({ opportunityId: id, stageId: st.id })
+                  }}
+                  className={cn(
+                    'flex w-[236px] flex-shrink-0 flex-col rounded-2xl border bg-card transition',
+                    overStage === st.id && live
+                      ? 'border-primary ring-2 ring-primary/30'
+                      : 'border-border',
+                  )}
                 >
                   <div className="border-b border-border-soft px-3 py-2.5">
                     <p className="truncate text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -328,14 +413,29 @@ export default function Opportunities() {
                         <button
                           key={o.id}
                           type="button"
+                          draggable={live}
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', o.id)
+                            e.dataTransfer.effectAllowed = 'move'
+                            setDragId(o.id)
+                          }}
+                          onDragEnd={() => {
+                            setDragId(null)
+                            setOverStage(null)
+                          }}
                           onClick={() => setOpenId(o.id)}
                           className={cn(
-                            'rounded-xl border border-border-soft bg-surface-muted p-2.5 text-left transition hover:border-primary/40 hover:bg-muted',
+                            'group rounded-xl border border-border-soft bg-surface-muted p-2.5 text-left transition hover:border-primary/40 hover:bg-muted',
                             o.status !== 'open' && 'opacity-75',
+                            live && 'cursor-grab active:cursor-grabbing',
+                            dragId === o.id && 'opacity-40',
                           )}
                         >
-                          <p className="truncate text-sm font-medium">
-                            {o.name}
+                          <p className="flex items-start gap-1 truncate text-sm font-medium">
+                            {live && (
+                              <GripVertical className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-muted-foreground opacity-0 transition group-hover:opacity-100" />
+                            )}
+                            <span className="truncate">{o.name}</span>
                           </p>
                           {o.contactName && (
                             <p className="truncate text-[11px] text-muted-foreground">

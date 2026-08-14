@@ -1249,3 +1249,17 @@ export function roleLabel(role: string | null | undefined): string {
   }
   return map[role] ?? role.replace(/_/g, ' ')
 }
+
+/**
+ * Move an opportunity to another stage. Demo mode refuses rather than
+ * pretending — a board that appears to save and doesn't is worse than
+ * one that says it can't.
+ */
+export async function moveOpportunity(input: {
+  subAccount: string
+  opportunityId: string
+  pipelineId: string
+  stageId: string
+}): Promise<{ opportunityId: string; stageId: string }> {
+  return write('/opportunities/move', 'PATCH', input)
+}
