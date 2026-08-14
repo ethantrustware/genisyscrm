@@ -346,19 +346,6 @@ export type Agent = {
   lastBookingAt: string | null
 }
 
-export type LeadRow = {
-  id: string
-  name: string | null
-  email: string | null
-  phone: string | null
-  company: string | null
-  serviceType: string | null
-  zip: string | null
-  status: string
-  source: string
-  createdAt: string
-}
-
 export type DocRow = {
   id: string
   filename: string
@@ -429,10 +416,6 @@ export async function fetchAgents(): Promise<Agent[]> {
   if (!isLive()) return MOCK_AGENTS
   return get<Agent[]>('/agents')
 }
-export async function fetchLeads(): Promise<LeadRow[]> {
-  if (!isLive()) return MOCK_LEADS
-  return get<LeadRow[]>('/leads')
-}
 export async function fetchDocuments(): Promise<DocRow[]> {
   if (!isLive()) return MOCK_DOCS
   return get<DocRow[]>('/documents')
@@ -469,13 +452,6 @@ const MOCK_AGENTS: Agent[] = [
   { id: 'u2', name: 'Hannah', email: 'hannah@leadgenisys.com', role: 'agent', image: null, appointmentCount: 96, lastBookingAt: '2026-07-23T18:00:00.000Z' },
   { id: 'u3', name: 'Alex', email: 'alex@leadgenisys.com', role: 'admin', image: null, appointmentCount: 22, lastBookingAt: '2026-07-19T14:00:00.000Z' },
   { id: 'u4', name: 'Ethan', email: 'ethan@leadgenisys.com', role: 'member', image: null, appointmentCount: 10, lastBookingAt: '2026-07-11T14:00:00.000Z' },
-]
-
-const MOCK_LEADS: LeadRow[] = [
-  { id: 'l1', name: 'Dana Whitmore', email: 'da...@example.com', phone: '(...) ...-2201', company: null, serviceType: 'solar', zip: '85021', status: 'new', source: 'web_form', createdAt: '2026-07-24T14:00:00.000Z' },
-  { id: 'l2', name: 'Victor Reyes', email: 'vi...@example.com', phone: '(...) ...-2245', company: 'Reyes HVAC', serviceType: 'roofing', zip: '75204', status: 'contacted', source: 'nct_media', createdAt: '2026-07-23T18:30:00.000Z' },
-  { id: 'l3', name: 'Simone Clark', email: 'si...@example.com', phone: '(...) ...-2288', company: null, serviceType: 'solar', zip: '84101', status: 'qualified', source: 'referral', createdAt: '2026-07-22T16:15:00.000Z' },
-  { id: 'l4', name: 'Andre Boyd', email: 'an...@example.com', phone: '(...) ...-2310', company: null, serviceType: 'roofing', zip: '85281', status: 'unqualified', source: 'nct_media', createdAt: '2026-07-21T19:45:00.000Z' },
 ]
 
 const MOCK_DOCS: DocRow[] = [
