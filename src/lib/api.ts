@@ -673,3 +673,146 @@ export async function registerAccount(
     }
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/*  CRM (GoHighLevel)                                                         */
+/* -------------------------------------------------------------------------- */
+
+export type SubAccount = {
+  vaultName: string
+  locationId: string
+  locationName: string
+}
+
+export type CrmConversation = {
+  id: string
+  contactId: string | null
+  contactName: string | null
+  contactEmail: string | null
+  contactPhone: string | null
+  lastMessageBody: string | null
+  lastMessageDate: string | null
+  lastMessageType: string | null
+  unreadCount: number
+}
+
+export type CrmGroup = {
+  subAccount: SubAccount
+  conversations: CrmConversation[]
+  nextCursor: string | null
+  error: string | null
+}
+
+export type CrmMessage = {
+  id: string
+  body: string | null
+  direction: 'inbound' | 'outbound'
+  dateAdded: string | null
+  messageType: string | null
+  attachments: string[]
+}
+
+export type CrmThread = {
+  conversation: CrmConversation
+  messages: CrmMessage[]
+  contact: Record<string, string | null> | null
+}
+
+export async function fetchSubAccounts(): Promise<{
+  subAccounts: SubAccount[]
+  errors: Array<{ vaultName: string; error: string }>
+}> {
+  if (!isLive()) {
+    return { subAccounts: MOCK_SUBACCOUNTS, errors: [] }
+  }
+  return get('/crm/subaccounts')
+}
+
+export async function fetchConversations(
+  subAccount: string,
+  cursor?: string,
+): Promise<{ groups: CrmGroup[] }> {
+  if (!isLive()) return { groups: MOCK_CRM_GROUPS }
+  const q = new URLSearchParams({ subAccount, limit: '50' })
+  if (cursor) q.set('cursor', cursor)
+  return get(`/crm/conversations?${q.toString()}`)
+}
+
+export async function fetchThread(
+  subAccount: string,
+  convId: string,
+): Promise<CrmThread> {
+  if (!isLive()) {
+    return MOCK_THREADS[convId] ?? MOCK_THREADS.c1
+  }
+  const q = new URLSearchParams({ subAccount, convId })
+  return get(`/crm/thread?${q.toString()}`)
+}
+
+/* ---- mocks ---- */
+
+const MOCK_SUBACCOUNTS: SubAccount[] = [
+  { vaultName: 'GHL Genisys Token', locationId: 'loc_genisys', locationName: 'Genisys (agency)' },
+  { vaultName: 'GHL Brighton Token', locationId: 'loc_brighton', locationName: 'Brighton Solar' },
+  { vaultName: 'GHL Spring Token', locationId: 'loc_spring', locationName: 'Spring Solar' },
+]
+
+function mockConv(
+  id: string,
+  name: string,
+  body: string,
+  hoursAgo: number,
+  unread = 0,
+  type = 'TYPE_SMS',
+): CrmConversation {
+  return {
+    id,
+    contactId: `ct_${id}`,
+    contactName: name,
+    contactEmail: `${name.split(' ')[0].toLowerCase()}@example.com`,
+    contactPhone: '(602) 555-0148',
+    lastMessageBody: body,
+    lastMessageDate: new Date(
+      Date.UTC(2026, 6, 24, 18, 0, 0) - hoursAgo * 3600 * 1000,
+    ).toISOString(),
+    lastMessageType: type,
+    unreadCount: unread,
+  }
+}
+
+const MOCK_CRM_GROUPS: CrmGroup[] = [
+  {
+    subAccount: MOCK_SUBACCOUNTS[0],
+    nextCursor: null,
+    error: null,
+    conversations: [
+      mockConv('c1', 'Jordan Blake', 'Yes that time works for me, see you then', 1, 2),
+      mockConv('c2', 'Alicia Moreno', 'Can we move it to Thursday instead?', 4),
+      mockConv('c3', 'Ray Whitfield', 'Thanks for the info', 26, 0, 'TYPE_EMAIL'),
+      mockConv('c4', 'Nina Patel', 'Who is this?', 50),
+    ],
+  },
+]
+
+const MOCK_THREADS: Record<string, CrmThread> = {
+  c1: {
+    conversation: MOCK_CRM_GROUPS[0].conversations[0],
+    contact: {
+      id: 'ct_c1',
+      firstName: 'Jordan',
+      lastName: 'Blake',
+      email: 'jordan@example.com',
+      phone: '(602) 555-0148',
+      companyName: null,
+      source: 'Facebook Ad',
+      dateAdded: '2026-07-18T15:00:00.000Z',
+      city: 'Phoenix',
+      state: 'AZ',
+    },
+    messages: [
+      { id: 'm1', body: 'Hi Jordan, this is Mary with Genisys — confirming your solar consultation for Friday at 1pm.', direction: 'outbound', dateAdded: '2026-07-23T16:00:00.000Z', messageType: 'TYPE_SMS', attachments: [] },
+      { id: 'm2', body: 'Yes that time works for me, see you then', direction: 'inbound', dateAdded: '2026-07-23T16:14:00.000Z', messageType: 'TYPE_SMS', attachments: [] },
+      { id: 'm3', body: 'Perfect — you will get a reminder the morning of.', direction: 'outbound', dateAdded: '2026-07-23T16:15:00.000Z', messageType: 'TYPE_SMS', attachments: [] },
+    ],
+  },
+}
