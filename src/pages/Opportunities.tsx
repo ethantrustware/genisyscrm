@@ -1,17 +1,23 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import {
   AlertCircle,
   Building2,
+  FileText,
   GripVertical,
   KanbanSquare,
   Mail,
+  MessagesSquare,
   Phone,
+  Tag,
   User,
   X,
 } from 'lucide-react'
 import {
+  addOpportunityNote,
   fetchOpportunities,
+  fetchOpportunityContext,
   fetchPipelines,
   moveOpportunity,
   useIsLive,
@@ -45,12 +51,43 @@ const STATUS_TONE: Record<string, 'mint' | 'pink' | 'amber' | 'blue'> = {
 function OpportunityDetail({
   opp,
   stageName,
+  subAccount,
+  live,
   onClose,
 }: {
   opp: Opportunity
   stageName: string | null
+  subAccount: string
+  live: boolean
   onClose: () => void
 }) {
+  const queryClient = useQueryClient()
+  const [note, setNote] = useState('')
+  const [noteError, setNoteError] = useState<string | null>(null)
+
+  const ctxKey = ['opp-context', subAccount, opp.contactId]
+  const ctx = useQuery({
+    queryKey: ctxKey,
+    queryFn: () => fetchOpportunityContext(subAccount, opp.contactId ?? ''),
+    enabled: !!opp.contactId,
+  })
+
+  const saveNote = useMutation({
+    mutationFn: () =>
+      addOpportunityNote({
+        subAccount,
+        contactId: opp.contactId ?? '',
+        body: note.trim(),
+      }),
+    onSuccess: () => {
+      setNote('')
+      setNoteError(null)
+      queryClient.invalidateQueries({ queryKey: ctxKey })
+    },
+    onError: (e) =>
+      setNoteError(e instanceof Error ? e.message : 'Could not save the note.'),
+  })
+
   const rows: Array<{ icon: typeof User; label: string; value: string | null; href?: string }> = [
     { icon: User, label: 'Contact', value: opp.contactName },
     {
@@ -146,8 +183,85 @@ function OpportunityDetail({
           })}
         </ul>
 
+        {/* Tags */}
+        <div>
+          <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <Tag className="h-3 w-3" />
+            Tags
+          </p>
+          {ctx.isLoading ? (
+            <p className="text-xs text-muted-foreground">Loading…</p>
+          ) : (ctx.data?.tags?.length ?? 0) === 0 ? (
+            <p className="text-xs text-muted-foreground">No tags.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {ctx.data!.tags.map((t) => (
+                <Chip key={t} tone="blue">
+                  {t}
+                </Chip>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Notes */}
+        <div>
+          <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <FileText className="h-3 w-3" />
+            Notes
+          </p>
+
+          {(ctx.data?.notes?.length ?? 0) > 0 && (
+            <ul className="mb-3 flex max-h-44 flex-col gap-2 overflow-y-auto">
+              {ctx.data!.notes.map((n) => (
+                <li
+                  key={n.id}
+                  className="rounded-xl border border-border-soft bg-surface-muted p-2.5"
+                >
+                  <p className="whitespace-pre-wrap text-xs">{n.body}</p>
+                  {n.createdAt && (
+                    <p className="mt-1 text-[10px] text-muted-foreground">
+                      {formatDate(n.createdAt)}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {noteError && (
+            <p className="mb-2 rounded-lg border border-destructive/30 bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive">
+              {noteError}
+            </p>
+          )}
+
+          <div className="flex items-end gap-2">
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              disabled={!live || !opp.contactId}
+              rows={2}
+              placeholder={
+                live
+                  ? 'Add a note — saved to the contact in GoHighLevel'
+                  : 'Sign in to add notes'
+              }
+              className="min-h-[44px] flex-1 resize-y rounded-xl border border-border bg-card px-3 py-2 text-sm focus:border-primary focus:outline-none disabled:opacity-60"
+            />
+            <button
+              type="button"
+              disabled={!live || !note.trim() || saveNote.isPending}
+              onClick={() => saveNote.mutate()}
+              className="rounded-full bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-40"
+            >
+              {saveNote.isPending ? 'Saving…' : 'Add note'}
+            </button>
+          </div>
+        </div>
+
         <p className="border-t border-border-soft pt-3 text-[11px] text-muted-foreground">
-          Drag a card on the board to change its stage. Other fields are edited in GoHighLevel.
+          Drag a card on the board to change its stage. Other fields are edited
+          in GoHighLevel.
         </p>
       </div>
     </div>
@@ -452,6 +566,41 @@ export default function Opportunities() {
                               </Chip>
                             )}
                           </div>
+
+                          {/* Quick actions, mirroring GHL's own card row.
+                              Rendered as spans inside the card button and
+                              stopped from bubbling, so tapping one does not
+                              also open the detail panel. */}
+                          <span className="mt-2 flex items-center gap-1 border-t border-border-soft pt-1.5">
+                            {o.contactPhone && (
+                              <a
+                                href={`tel:${o.contactPhone.replace(/[^0-9+]/g, '')}`}
+                                onClick={(e) => e.stopPropagation()}
+                                title={`Call ${o.contactPhone}`}
+                                className="grid h-6 w-6 place-items-center rounded-md text-muted-foreground transition hover:bg-card hover:text-primary"
+                              >
+                                <Phone className="h-3.5 w-3.5" />
+                              </a>
+                            )}
+                            <Link
+                              to="/crm"
+                              onClick={(e) => e.stopPropagation()}
+                              title="View conversations"
+                              className="grid h-6 w-6 place-items-center rounded-md text-muted-foreground transition hover:bg-card hover:text-primary"
+                            >
+                              <MessagesSquare className="h-3.5 w-3.5" />
+                            </Link>
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setOpenId(o.id)
+                              }}
+                              title="Tags and notes"
+                              className="grid h-6 w-6 cursor-pointer place-items-center rounded-md text-muted-foreground transition hover:bg-card hover:text-primary"
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                            </span>
+                          </span>
                         </button>
                       ))
                     )}
@@ -469,6 +618,8 @@ export default function Opportunities() {
           stageName={
             stages.find((st) => st.id === selected.stageId)?.name ?? null
           }
+          subAccount={activeSub}
+          live={live}
           onClose={() => setOpenId(null)}
         />
       )}

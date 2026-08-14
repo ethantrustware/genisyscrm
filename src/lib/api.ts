@@ -1263,3 +1263,51 @@ export async function moveOpportunity(input: {
 }): Promise<{ opportunityId: string; stageId: string }> {
   return write('/opportunities/move', 'PATCH', input)
 }
+
+export type OppContext = {
+  tags: string[]
+  notes: Array<{ id: string; body: string; createdAt: string | null }>
+  conversationId: string | null
+  subAccount: string
+  phone: string | null
+  email: string | null
+}
+
+/** Tags, notes and the contact's conversation — one call per card open. */
+export async function fetchOpportunityContext(
+  subAccount: string,
+  contactId: string,
+): Promise<OppContext> {
+  if (!isLive()) {
+    return {
+      tags: ['cold-call', 'contractor', 'roofing'],
+      notes: [
+        {
+          id: 'n1',
+          body: 'Left voicemail, calling back Thursday.\n\n— Alex Hyatt (via Genisys CRM)',
+          createdAt: '2026-08-12T15:00:00.000Z',
+        },
+        {
+          id: 'n2',
+          body: 'Interested in the review system, not the website.',
+          createdAt: '2026-08-08T15:00:00.000Z',
+        },
+      ],
+      conversationId: 'c1',
+      subAccount,
+      phone: '(602) 555-0148',
+      email: 'demo@example.com',
+    }
+  }
+  const q = new URLSearchParams({ subAccount, contactId })
+  return get(`/opportunities/context?${q.toString()}`)
+}
+
+/** Add a note to the contact behind an opportunity. Writes into GHL. */
+export async function addOpportunityNote(input: {
+  subAccount: string
+  contactId: string
+  body: string
+}): Promise<{ contactId: string; saved: boolean }> {
+  return write('/opportunities/note', 'POST', input)
+}
