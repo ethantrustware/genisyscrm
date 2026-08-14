@@ -1085,3 +1085,162 @@ export const deleteStaff = (id: string) =>
     `/agents/manage?id=${encodeURIComponent(id)}`,
     'DELETE',
   )
+
+/* -------------------------------------------------------------------------- */
+/*  Opportunities                                                             */
+/* -------------------------------------------------------------------------- */
+
+export type PipelineStage = { id: string; name: string; position: number }
+export type Pipeline = { id: string; name: string; stages: PipelineStage[] }
+
+export type Opportunity = {
+  id: string
+  name: string
+  value: number
+  status: string
+  stageId: string | null
+  pipelineId: string | null
+  source: string | null
+  assignedTo: string | null
+  createdAt: string | null
+  updatedAt: string | null
+  contactId: string | null
+  contactName: string | null
+  contactEmail: string | null
+  contactPhone: string | null
+}
+
+export async function fetchPipelines(subAccount?: string): Promise<{
+  subAccounts: Array<{ vaultName: string; locationName: string }>
+  subAccountErrors: Array<{ vaultName: string; error: string }>
+  activeSubAccount: string
+  pipelines: Pipeline[]
+}> {
+  if (!isLive()) {
+    return {
+      subAccounts: MOCK_SUBACCOUNTS.map((s) => ({
+        vaultName: s.vaultName,
+        locationName: s.locationName,
+      })),
+      subAccountErrors: [],
+      activeSubAccount: MOCK_SUBACCOUNTS[0].vaultName,
+      pipelines: MOCK_PIPELINES,
+    }
+  }
+  const q = subAccount ? `?subAccount=${encodeURIComponent(subAccount)}` : ''
+  return get(`/opportunities/pipelines${q}`)
+}
+
+export async function fetchOpportunities(
+  subAccount: string,
+  pipelineId: string,
+): Promise<{ opportunities: Opportunity[] }> {
+  if (!isLive()) return { opportunities: MOCK_OPPS }
+  const q = new URLSearchParams({ subAccount, pipelineId })
+  return get(`/opportunities?${q.toString()}`)
+}
+
+/* ---- mocks ---- */
+
+const MOCK_PIPELINES: Pipeline[] = [
+  {
+    id: 'pl1',
+    name: 'Contractor Onboarding',
+    stages: [
+      { id: 's1', name: 'New Lead', position: 0 },
+      { id: 's2', name: 'Contacted', position: 1 },
+      { id: 's3', name: 'Demo Booked', position: 2 },
+      { id: 's4', name: 'Proposal Sent', position: 3 },
+      { id: 's5', name: 'Won', position: 4 },
+    ],
+  },
+  {
+    id: 'pl2',
+    name: 'Cold Outreach',
+    stages: [
+      { id: 't1', name: 'Prospect', position: 0 },
+      { id: 't2', name: 'Dialed', position: 1 },
+      { id: 't3', name: 'Interested', position: 2 },
+    ],
+  },
+]
+
+function mockOpp(
+  id: string,
+  name: string,
+  contact: string,
+  stageId: string,
+  value: number,
+  status = 'open',
+): Opportunity {
+  return {
+    id,
+    name,
+    value,
+    status,
+    stageId,
+    pipelineId: 'pl1',
+    source: 'Cold call',
+    assignedTo: null,
+    createdAt: '2026-08-01T15:00:00.000Z',
+    updatedAt: '2026-08-12T15:00:00.000Z',
+    contactId: 'ct-' + id,
+    contactName: contact,
+    contactEmail: contact.split(' ')[0].toLowerCase() + '@example.com',
+    contactPhone: '(602) 555-0148',
+    }
+}
+
+const MOCK_OPPS: Opportunity[] = [
+  mockOpp('o1', 'Stone Systems - website + AI', 'Guy Stone', 's1', 297),
+  mockOpp('o2', 'Glassport Windows', 'Manny Ruiz', 's1', 297),
+  mockOpp('o3', 'Apex Roofing', 'Dana Whitmore', 's2', 297),
+  mockOpp('o4', 'Reyes HVAC', 'Victor Reyes', 's3', 594),
+  mockOpp('o5', 'Clark Contracting', 'Simone Clark', 's4', 297),
+  mockOpp('o6', 'Boyd Exteriors', 'Andre Boyd', 's5', 297, 'won'),
+  mockOpp('o7', 'Hilltop Builders', 'Nina Patel', 's2', 297, 'lost'),
+]
+
+/* -------------------------------------------------------------------------- */
+/*  Session identity                                                          */
+/* -------------------------------------------------------------------------- */
+
+export type Me = {
+  tokenName: string
+  scope: string
+  hub: string
+  user: {
+    id: string
+    name: string | null
+    email: string
+    role: string
+  } | null
+}
+
+/**
+ * The signed-in account, read from the Hub rather than cached at login,
+ * so a promotion or revocation shows on the next load instead of leaving
+ * a stale label until sign-out.
+ */
+export async function fetchCurrentUser(): Promise<Me> {
+  if (!isLive()) {
+    return { tokenName: 'Demo', scope: 'read', hub: 'Genisys Hub', user: null }
+  }
+  return get<Me>('/me')
+}
+
+/** Role slug -> something a human would say. */
+export function roleLabel(role: string | null | undefined): string {
+  if (!role) return 'Signed in'
+  const map: Record<string, string> = {
+    admin: 'Admin',
+    member: 'Member',
+    agent: 'Agent',
+    crm_user: 'CRM user',
+    crm_pending: 'Pending approval',
+    crm_denied: 'No access',
+    agent_pending: 'Pending approval',
+    agent_denied: 'No access',
+  }
+  return map[role] ?? role.replace(/_/g, ' ')
+}

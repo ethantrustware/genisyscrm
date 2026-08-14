@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import {
   Link,
   Outlet,
@@ -13,6 +14,7 @@ import {
   ChevronRight,
   FolderOpen,
   Inbox,
+  KanbanSquare,
   LayoutGrid,
   Menu,
   MessagesSquare,
@@ -26,7 +28,14 @@ import {
   Wallet,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { sessionLabel, signOut, useAccess, useIsLive } from '@/lib/api'
+import {
+  fetchCurrentUser,
+  roleLabel,
+  sessionLabel,
+  signOut,
+  useAccess,
+  useIsLive,
+} from '@/lib/api'
 
 /**
  * App shell — a port of the Hub's sidebar + layout, class-for-class, so
@@ -43,6 +52,7 @@ const NAV = [
   { to: '/inbox', label: 'Inbox', icon: Inbox },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },
   { to: '/crm', label: 'CRM', icon: MessagesSquare },
+  { to: '/opportunities', label: 'Opportunities', icon: KanbanSquare },
   { to: '/clients', label: 'Clients', icon: Building2 },
   { to: '/agents', label: 'Staff', icon: Users },
   { to: '/documents', label: 'Documents', icon: FolderOpen },
@@ -80,6 +90,15 @@ function Sidebar({ mobileOpen }: { mobileOpen: boolean }) {
   const navigate = useNavigate()
 
   useEffect(() => setLabel(sessionLabel()), [])
+
+  // Role comes from the Hub, not from what was cached at sign-in, so a
+  // promotion or revocation shows up without signing out first.
+  const me = useQuery({
+    queryKey: ['me'],
+    queryFn: fetchCurrentUser,
+    enabled: live,
+    staleTime: 60_000,
+  })
 
   const handleSignOut = () => {
     signOut()
@@ -206,10 +225,12 @@ function Sidebar({ mobileOpen }: { mobileOpen: boolean }) {
           />
           <Link to="/connect" className="min-w-0 flex-1 text-left">
             <p className="truncate text-sm font-semibold">
-              {live ? 'Live data' : 'Demo data'}
+              {live ? roleLabel(me.data?.user?.role) : 'Demo mode'}
             </p>
             <p className="truncate text-xs text-muted-foreground">
-              {live ? label : 'Sample data only'}
+              {live
+                ? (me.data?.user?.name ?? me.data?.user?.email ?? label)
+                : 'Sample data only'}
             </p>
           </Link>
           <button
