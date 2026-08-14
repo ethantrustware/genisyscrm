@@ -1,6 +1,17 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Archive, Building2, Plus, RotateCcw, Search, X } from 'lucide-react'
+import {
+  Archive,
+  Building2,
+  CalendarDays,
+  Mail,
+  MapPin,
+  Phone,
+  Plus,
+  RotateCcw,
+  Search,
+  X,
+} from 'lucide-react'
 import {
   createClient,
   fetchClients,
@@ -19,7 +30,7 @@ import {
   btnPrimary,
   inputCls,
 } from '@/components/ui'
-import { cn } from '@/lib/utils'
+import { cn, formatDate } from '@/lib/utils'
 
 function NewClientForm({
   busy,
@@ -82,11 +93,198 @@ function NewClientForm({
   )
 }
 
+
+/**
+ * Client detail. Opens over the list rather than navigating, so you keep
+ * your place in a long roster after closing it.
+ */
+function ClientDetail({
+  client,
+  live,
+  busy,
+  onClose,
+  onArchive,
+}: {
+  client: Client
+  live: boolean
+  busy: boolean
+  onClose: () => void
+  onArchive: (active: boolean) => void
+}) {
+  const rows: Array<{
+    icon: typeof Mail
+    label: string
+    value: string | null
+    href?: string
+  }> = [
+    {
+      icon: Mail,
+      label: 'Email',
+      value: client.contactEmail,
+      href: client.contactEmail ? 'mailto:' + client.contactEmail : undefined,
+    },
+    {
+      icon: Phone,
+      label: 'Phone',
+      value: client.contactPhone,
+      href: client.contactPhone
+        ? 'tel:' + client.contactPhone.replace(/[^0-9+]/g, '')
+        : undefined,
+    },
+    { icon: MapPin, label: 'State', value: client.state },
+    {
+      icon: CalendarDays,
+      label: 'Added',
+      value: client.createdAt ? formatDate(client.createdAt) : null,
+    },
+  ]
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-[8vh] backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="flex w-full max-w-xl flex-col gap-5 rounded-2xl border border-border bg-popover p-6 text-popover-foreground shadow-pop"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <Avatar name={client.name} color={client.color} />
+            <div className="min-w-0">
+              <p className="truncate text-lg font-semibold">{client.name}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {client.contactName || 'No contact on file'}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-shrink-0 items-center gap-2">
+            <Chip tone={client.active ? 'mint' : 'muted'}>
+              {client.active ? 'Active' : 'Archived'}
+            </Chip>
+            <button type="button" onClick={onClose} aria-label="Close">
+              <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl border border-border-soft bg-surface-muted p-3">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              Appointments
+            </p>
+            <p className="mt-1 text-2xl font-semibold tabular-nums">
+              {client.appointmentCount}
+            </p>
+          </div>
+          <div className="rounded-xl border border-border-soft bg-surface-muted p-3">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              Brand colour
+            </p>
+            <p className="mt-2 flex items-center gap-2 text-sm">
+              <span
+                className="h-4 w-4 rounded-full border border-border"
+                style={{ backgroundColor: client.color }}
+              />
+              <span className="font-mono text-xs">{client.color}</span>
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Contact
+          </p>
+          <ul className="flex flex-col gap-2">
+            {rows.map((r) => {
+              const Icon = r.icon
+              return (
+                <li key={r.label} className="flex items-center gap-2.5 text-sm">
+                  <Icon className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                  <span className="w-16 flex-shrink-0 text-xs text-muted-foreground">
+                    {r.label}
+                  </span>
+                  {r.value ? (
+                    r.href ? (
+                      <a
+                        href={r.href}
+                        className="truncate text-primary hover:underline"
+                      >
+                        {r.value}
+                      </a>
+                    ) : (
+                      <span className="truncate">{r.value}</span>
+                    )
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+
+        {client.contactRole && (
+          <div>
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Role
+            </p>
+            <p className="text-sm">{client.contactRole}</p>
+          </div>
+        )}
+
+        <div className="flex flex-wrap justify-end gap-2 border-t border-border-soft pt-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-border bg-card px-4 py-2 text-sm font-medium text-foreground/80 transition hover:bg-muted"
+          >
+            Close
+          </button>
+          {live && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                if (
+                  client.active &&
+                  !window.confirm(
+                    'Archive ' +
+                      client.name +
+                      '? Their appointments and history are kept - they just stop appearing as active.',
+                  )
+                )
+                  return
+                onArchive(!client.active)
+                onClose()
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 text-sm font-semibold transition hover:bg-muted disabled:opacity-50"
+            >
+              {client.active ? (
+                <>
+                  <Archive className="h-4 w-4" />
+                  Archive
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="h-4 w-4" />
+                  Restore
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Clients() {
   const live = useIsLive()
   const queryClient = useQueryClient()
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState(false)
+  const [openId, setOpenId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const { data, isLoading, isError, error: qErr } = useQuery<Client[]>({
@@ -139,8 +337,9 @@ export default function Clients() {
 
   const Row = ({ c }: { c: Client }) => (
     <li
+      onClick={() => setOpenId(c.id)}
       className={cn(
-        'flex flex-wrap items-center gap-3 border-t border-border-soft px-2 py-4 transition hover:bg-surface-muted',
+        'flex cursor-pointer flex-wrap items-center gap-3 border-t border-border-soft px-2 py-4 transition hover:bg-surface-muted',
         !c.active && 'opacity-70',
       )}
     >
@@ -162,7 +361,8 @@ export default function Clients() {
         <button
           type="button"
           disabled={busy}
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation()
             if (
               c.active &&
               !window.confirm(
@@ -242,6 +442,20 @@ export default function Clients() {
           className="w-full rounded-full border border-border bg-card py-2.5 pl-11 pr-4 text-sm shadow-soft focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
       </div>
+
+      {openId &&
+        (() => {
+          const c = all.find((x) => x.id === openId)
+          return c ? (
+            <ClientDetail
+              client={c}
+              live={live}
+              busy={busy}
+              onClose={() => setOpenId(null)}
+              onArchive={(active) => archive.mutate({ id: c.id, active })}
+            />
+          ) : null
+        })()}
 
       {filtered.length === 0 ? (
         <EmptyCard icon={Building2}>No clients match.</EmptyCard>

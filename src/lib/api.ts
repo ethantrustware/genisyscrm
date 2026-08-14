@@ -997,3 +997,66 @@ const MOCK_MEETINGS: Meeting[] = [
     joinLabel: 'Join Meet',
   },
 ]
+
+export type CalEvent = {
+  id: string
+  title: string
+  startTime: string | null
+  endTime: string | null
+  contactName: string | null
+  status: string | null
+  subAccount: string | null
+  subAccountName: string | null
+  joinUrl: string | null
+  joinKind: string | null
+  joinLabel: string | null
+}
+
+/** Calendar events across every sub-account + iCal feed, for the month view. */
+export async function fetchCalendarEvents(
+  start: Date,
+  end: Date,
+): Promise<{ events: CalEvent[]; subAccounts: Array<{ id: string; name: string }> }> {
+  if (!isLive()) {
+    return { events: MOCK_CAL_EVENTS, subAccounts: MOCK_CAL_SUBS }
+  }
+  const q = new URLSearchParams({
+    startTime: start.toISOString(),
+    endTime: end.toISOString(),
+  })
+  return get(`/calendar-events?${q.toString()}`)
+}
+
+const MOCK_CAL_SUBS = [
+  { id: 'GHL Genisys Token', name: 'Lead Genisys' },
+  { id: 'GHL Sales 1', name: 'Lead Genisys Sales 1' },
+]
+
+function mockEvent(dayOffset: number, hour: number, title: string, who: string, sub: number, status = 'confirmed'): CalEvent {
+  const d = new Date()
+  d.setDate(d.getDate() + dayOffset)
+  d.setHours(hour, 0, 0, 0)
+  const end = new Date(d.getTime() + 30 * 60 * 1000)
+  return {
+    id: `ev-${dayOffset}-${hour}`,
+    title,
+    startTime: d.toISOString(),
+    endTime: end.toISOString(),
+    contactName: who,
+    status,
+    subAccount: MOCK_CAL_SUBS[sub].id,
+    subAccountName: MOCK_CAL_SUBS[sub].name,
+    joinUrl: 'https://meet.google.com/demo-abc-defg',
+    joinKind: 'meet',
+    joinLabel: 'Join Meet',
+  }
+}
+
+const MOCK_CAL_EVENTS: CalEvent[] = [
+  mockEvent(0, 13, 'Growth Strategy Follow-up Call', 'Paige Kemper', 0),
+  mockEvent(0, 16, 'Discovery Call', 'Marcus Hall', 1),
+  mockEvent(1, 10, 'Onboarding Kickoff', 'Bethany Wiggins', 0),
+  mockEvent(2, 14, 'Website Review', 'Guy Stone', 1, 'confirmed'),
+  mockEvent(4, 11, 'Follow-up', 'Nina Patel', 0, 'cancelled'),
+  mockEvent(-2, 15, 'Intro Call', 'Ray Whitfield', 1, 'noshow'),
+]
