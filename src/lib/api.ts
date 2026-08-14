@@ -816,3 +816,48 @@ const MOCK_THREADS: Record<string, CrmThread> = {
     ],
   },
 }
+
+/**
+ * Send an SMS or email into a GHL conversation.
+ *
+ * The only write this app performs. It reaches a real customer, so it
+ * never runs in demo mode — there is no safe pretend version of sending
+ * someone a text.
+ */
+export async function sendCrmMessage(input: {
+  subAccount: string
+  conversationId: string
+  contactId?: string | null
+  message: string
+  type: 'SMS' | 'Email'
+}): Promise<{ ok: boolean; error?: string }> {
+  const conn = getConnection()
+  if (!conn) {
+    return {
+      ok: false,
+      error: 'Sign in to send messages — demo mode cannot reach customers.',
+    }
+  }
+
+  try {
+    const res = await fetch(`${conn.base}/api/external/v1/crm/send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${conn.token}`,
+      },
+      body: JSON.stringify({
+        subAccount: input.subAccount,
+        conversationId: input.conversationId,
+        contactId: input.contactId ?? undefined,
+        message: input.message,
+        type: input.type,
+      }),
+    })
+    const d = (await res.json().catch(() => ({}))) as { error?: string }
+    if (!res.ok) return { ok: false, error: d.error ?? 'Send failed.' }
+    return { ok: true }
+  } catch {
+    return { ok: false, error: 'Could not reach the Hub.' }
+  }
+}

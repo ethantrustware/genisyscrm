@@ -1,17 +1,20 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertCircle,
+  Loader2,
   Mail,
   MessageSquare,
   Phone,
   Search,
+  Send,
   X,
 } from 'lucide-react'
 import {
   fetchConversations,
   fetchSubAccounts,
   fetchThread,
+  sendCrmMessage,
   useIsLive,
   type CrmConversation,
   type CrmGroup,
@@ -142,13 +145,137 @@ function ConversationList({
   )
 }
 
+
+/**
+ * Reply box.
+ *
+ * No confirmation dialog on purpose: this is a messaging UI, and a modal
+ * on every send would be worn down to a reflex click within a day, which
+ * is worse than no guard at all. The safety is that sending is disabled
+ * in demo mode, the target is named on the button, and failures are
+ * shown rather than swallowed.
+ */
+function ReplyBox({
+  subAccount,
+  conversationId,
+  contactId,
+  live,
+  onSent,
+}: {
+  subAccount: string
+  conversationId: string
+  contactId: string | null
+  live: boolean
+  onSent: () => void
+}) {
+  const [text, setText] = useState('')
+  const [type, setType] = useState<'SMS' | 'Email'>('SMS')
+  const [error, setError] = useState<string | null>(null)
+
+  const send = useMutation({
+    mutationFn: async () => {
+      const r = await sendCrmMessage({
+        subAccount,
+        conversationId,
+        contactId,
+        message: text.trim(),
+        type,
+      })
+      if (!r.ok) throw new Error(r.error ?? 'Send failed.')
+    },
+    onSuccess: () => {
+      setText('')
+      setError(null)
+      onSent()
+    },
+    onError: (e) =>
+      setError(e instanceof Error ? e.message : 'Send failed.'),
+  })
+
+  const canSend = live && text.trim().length > 0 && !send.isPending
+
+  return (
+    <div className="border-t border-border px-4 py-3">
+      {error && (
+        <p className="mb-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {error}
+        </p>
+      )}
+
+      <div className="mb-2 flex items-center gap-1.5">
+        {(['SMS', 'Email'] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setType(t)}
+            className={cn(
+              'rounded-full px-2.5 py-1 text-[11px] font-semibold transition',
+              type === t
+                ? 'bg-primary-soft text-primary'
+                : 'text-muted-foreground hover:bg-muted',
+            )}
+          >
+            {t}
+          </button>
+        ))}
+        {!live && (
+          <span className="ml-auto text-[11px] text-muted-foreground">
+            Sign in to send
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-end gap-2">
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            // Cmd/Ctrl+Enter sends, matching the Hub.
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && canSend) {
+              send.mutate()
+            }
+          }}
+          rows={2}
+          disabled={!live}
+          placeholder={
+            live ? `Write a ${type}…` : 'Demo mode — sending is disabled'
+          }
+          className="min-h-[44px] flex-1 resize-y rounded-xl border border-border bg-card px-3 py-2 text-sm focus:border-primary focus:outline-none disabled:opacity-60"
+        />
+        <button
+          type="button"
+          disabled={!canSend}
+          onClick={() => send.mutate()}
+          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground shadow-soft transition hover:bg-primary/90 disabled:opacity-40"
+        >
+          {send.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Send className="h-4 w-4" />
+          )}
+          Send
+        </button>
+      </div>
+
+      <p className="mt-1.5 text-[11px] text-muted-foreground">
+        {live
+          ? 'Goes to the customer immediately. ⌘/Ctrl+Enter to send.'
+          : 'Demo mode cannot reach customers.'}
+      </p>
+    </div>
+  )
+}
+
 function Thread({
   subAccount,
   convId,
+  live,
 }: {
   subAccount: string
   convId: string
+  live: boolean
 }) {
+  const queryClient = useQueryClient()
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['crm-thread', subAccount, convId],
     queryFn: () => fetchThread(subAccount, convId),
@@ -238,9 +365,17 @@ function Thread({
         })}
       </div>
 
-      <p className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
-        Read-only view — replies are sent from the Hub.
-      </p>
+      <ReplyBox
+        subAccount={subAccount}
+        conversationId={convId}
+        contactId={t.conversation.contactId}
+        live={live}
+        onSent={() =>
+          queryClient.invalidateQueries({
+            queryKey: ['crm-thread', subAccount, convId],
+          })
+        }
+      />
     </div>
   )
 }
@@ -369,7 +504,11 @@ export default function Crm() {
 
         <div className="max-h-[68vh] overflow-hidden rounded-2xl border border-border bg-card">
           {selected ? (
-            <Thread subAccount={selected.subAccount} convId={selected.id} />
+            <Thread
+              subAccount={selected.subAccount}
+              convId={selected.id}
+              live={live}
+            />
           ) : (
             <div className="flex h-full min-h-[300px] items-center justify-center p-8 text-center">
               <p className="text-sm text-muted-foreground">
