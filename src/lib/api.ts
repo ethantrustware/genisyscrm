@@ -584,3 +584,92 @@ export function useAccess(): { ready: boolean; mode: Mode | null } {
   useEffect(() => setState({ ready: true, mode: getMode() }), [])
   return state
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Account auth                                                              */
+/* -------------------------------------------------------------------------- */
+
+export type AuthResult = { ok: boolean; message: string; pending?: boolean }
+
+/**
+ * Sign in with an email and password.
+ *
+ * On success the Hub returns a session token, which becomes the
+ * credential for every subsequent request. It is stored in this browser
+ * only and expires after 30 days.
+ */
+export async function loginWithPassword(
+  base: string,
+  email: string,
+  password: string,
+): Promise<AuthResult> {
+  const root = base.replace(/\/+$/, '')
+  try {
+    const res = await fetch(`${root}/api/external/v1/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    })
+    const d = (await res.json().catch(() => ({}))) as {
+      token?: string
+      user?: { name?: string | null; email?: string }
+      error?: string
+      pending?: boolean
+    }
+
+    if (!res.ok || !d.token) {
+      return {
+        ok: false,
+        pending: d.pending ?? false,
+        message: d.error ?? 'Could not sign in.',
+      }
+    }
+
+    setConnection(root, d.token)
+    setSessionLabel(d.user?.name || d.user?.email || 'Signed in')
+    return { ok: true, message: 'Signed in.' }
+  } catch {
+    return {
+      ok: false,
+      message: 'Could not reach the Hub. Check your connection and try again.',
+    }
+  }
+}
+
+/**
+ * Request an account. Always lands as pending — an admin approves before
+ * sign-in works, because this app reads real client data.
+ */
+export async function registerAccount(
+  base: string,
+  name: string,
+  email: string,
+  password: string,
+): Promise<AuthResult> {
+  const root = base.replace(/\/+$/, '')
+  try {
+    const res = await fetch(`${root}/api/external/v1/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, password }),
+    })
+    const d = (await res.json().catch(() => ({}))) as {
+      message?: string
+      error?: string
+    }
+    if (!res.ok) {
+      return { ok: false, message: d.error ?? 'Could not create the account.' }
+    }
+    return {
+      ok: true,
+      message:
+        d.message ??
+        'Request received. An admin will approve your account before you can sign in.',
+    }
+  } catch {
+    return {
+      ok: false,
+      message: 'Could not reach the Hub. Check your connection and try again.',
+    }
+  }
+}
