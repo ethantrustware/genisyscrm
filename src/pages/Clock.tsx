@@ -356,7 +356,13 @@ export default function Clock() {
           label={scope === 'all' ? 'Team hours this week' : 'My hours this week'}
           value={formatDuration(weekMinutes)}
         />
-        <SummaryCard label="People" value={rows.length} />
+        {/* "People: 1" is a useless card when you're looking at your own
+            hours, so that slot shows shift count instead. */}
+        {scope === 'all' ? (
+          <SummaryCard label="People" value={rows.length} />
+        ) : (
+          <SummaryCard label="Shifts this week" value={data.entries.length} />
+        )}
         <SummaryCard
           label="Shifts left open"
           value={openForgotten.length}
