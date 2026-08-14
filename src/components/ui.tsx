@@ -97,15 +97,24 @@ export function SummaryCard({
   label,
   value,
   sub,
+  tone = 'default',
 }: {
   label: string
   value: string | number
   sub?: string
+  /** `bad` colours the number red — used for counts that need action. */
+  tone?: 'default' | 'good' | 'bad'
 }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
       <p className="text-[13px] text-muted-foreground">{label}</p>
-      <p className="mt-2 text-[26px] font-semibold tracking-tight tabular-nums">
+      <p
+        className={cn(
+          'mt-2 text-[26px] font-semibold tracking-tight tabular-nums',
+          tone === 'good' && 'text-emerald-600 dark:text-emerald-400',
+          tone === 'bad' && 'text-rose-600 dark:text-rose-400',
+        )}
+      >
         {value}
       </p>
       {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
