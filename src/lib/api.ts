@@ -1075,3 +1075,13 @@ const MOCK_CAL_EVENTS: CalEvent[] = [
   mockEvent(4, 11, 'Follow-up', 'Nina Patel', 0, 'cancelled'),
   mockEvent(-2, 15, 'Intro Call', 'Ray Whitfield', 1, 'noshow'),
 ]
+
+/**
+ * Permanently delete an account. The Hub refuses if the person has
+ * booking history — deleting them would cascade to their appointments.
+ */
+export const deleteStaff = (id: string) =>
+  write<{ id: string; deleted: boolean }>(
+    `/agents/manage?id=${encodeURIComponent(id)}`,
+    'DELETE',
+  )

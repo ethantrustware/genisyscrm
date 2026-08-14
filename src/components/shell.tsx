@@ -12,7 +12,6 @@ import {
   CheckCircle2,
   ChevronRight,
   FolderOpen,
-  Headphones,
   Inbox,
   LayoutGrid,
   Menu,
@@ -23,6 +22,7 @@ import {
   LogOut,
   Plug,
   Sun,
+  Users,
   Wallet,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -44,7 +44,7 @@ const NAV = [
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },
   { to: '/crm', label: 'CRM', icon: MessagesSquare },
   { to: '/clients', label: 'Clients', icon: Building2 },
-  { to: '/agents', label: 'Agents', icon: Headphones },
+  { to: '/agents', label: 'Staff', icon: Users },
   { to: '/documents', label: 'Documents', icon: FolderOpen },
   { to: '/payments', label: 'Payments', icon: Wallet },
   { to: '/connect', label: 'Connect', icon: Plug },

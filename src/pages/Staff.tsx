@@ -10,10 +10,17 @@ import {
   RotateCcw,
   ShieldCheck,
   UserX,
+  Trash2,
   Users,
   X,
 } from 'lucide-react'
-import { fetchAgents, updateAgent, useIsLive, type Agent } from '@/lib/api'
+import {
+  deleteStaff,
+  fetchAgents,
+  updateAgent,
+  useIsLive,
+  type Agent,
+} from '@/lib/api'
 import {
   Avatar,
   Chip,
@@ -265,12 +272,14 @@ function PersonRow({
   canManage,
   onOpen,
   onAction,
+  onDelete,
 }: {
   a: Agent
   busy: boolean
   canManage: boolean
   onOpen: () => void
   onAction: ActionFn
+  onDelete?: (a: Agent) => void
 }) {
   const pending = isPending(a.role)
   return (
@@ -341,24 +350,38 @@ function PersonRow({
       )}
 
       {canManage && isDenied(a.role) && (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={(e) => {
-            e.stopPropagation()
-            onAction({ id: a.id, action: 'approve' })
-          }}
-          className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold transition hover:bg-muted disabled:opacity-50"
+        <div
+          className="flex flex-shrink-0 items-center gap-1.5"
+          onClick={(e) => e.stopPropagation()}
         >
-          <RotateCcw className="h-3.5 w-3.5" />
-          Restore
-        </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onAction({ id: a.id, action: 'approve' })}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold transition hover:bg-muted disabled:opacity-50"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Restore
+          </button>
+          {onDelete && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onDelete(a)}
+              aria-label={`Delete ${a.email}`}
+              title="Delete permanently"
+              className="grid h-8 w-8 place-items-center rounded-full border border-rose-200 bg-rose-50 text-rose-700 transition hover:bg-rose-100 disabled:opacity-50 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       )}
     </li>
   )
 }
 
-export default function Agents() {
+export default function Staff() {
   const live = useIsLive()
   const queryClient = useQueryClient()
   const [error, setError] = useState<string | null>(null)
@@ -367,6 +390,16 @@ export default function Agents() {
   const { data, isLoading, isError, error: qErr } = useQuery<Agent[]>({
     queryKey: ['agents'],
     queryFn: fetchAgents,
+  })
+
+  const remove = useMutation({
+    mutationFn: (a: Agent) => deleteStaff(a.id),
+    onSuccess: () => {
+      setError(null)
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
+    },
+    onError: (e) =>
+      setError(e instanceof Error ? e.message : 'Could not delete.'),
   })
 
   const act = useMutation({
@@ -402,10 +435,12 @@ export default function Agents() {
     title,
     list,
     hint,
+    deletable,
   }: {
     title: string
     list: Agent[]
     hint?: string
+    deletable?: boolean
   }) =>
     list.length === 0 ? null : (
       <div>
@@ -419,10 +454,23 @@ export default function Agents() {
               <PersonRow
                 key={a.id}
                 a={a}
-                busy={act.isPending}
+                busy={act.isPending || remove.isPending}
                 canManage={canManage}
                 onOpen={() => setOpenId(a.id)}
                 onAction={act.mutate}
+                onDelete={
+                  deletable
+                    ? (p) => {
+                        if (
+                          !window.confirm(
+                            `Permanently delete ${p.email}? This cannot be undone. Blocked automatically if they have booking history.`,
+                          )
+                        )
+                          return
+                        remove.mutate(p)
+                      }
+                    : undefined
+                }
               />
             ))}
           </ul>
@@ -433,8 +481,8 @@ export default function Agents() {
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6">
       <PageHeader
-        title="Agents"
-        breadcrumbs={[{ label: 'Genisys' }, { label: 'Agents' }]}
+        title="Staff"
+        breadcrumbs={[{ label: 'Genisys' }, { label: 'Staff' }]}
         subtitle={
           live
             ? canManage
@@ -481,7 +529,8 @@ export default function Agents() {
           <Section
             title="No access"
             list={denied}
-            hint="Denied or revoked. Restoring puts them back."
+            deletable
+            hint="Denied or revoked. Restore puts them back; the bin deletes them for good."
           />
         </>
       )}
@@ -490,7 +539,7 @@ export default function Agents() {
         <AgentDetail
           agent={open}
           canManage={canManage}
-          busy={act.isPending}
+          busy={act.isPending || remove.isPending}
           onClose={() => setOpenId(null)}
           onAction={act.mutate}
         />
