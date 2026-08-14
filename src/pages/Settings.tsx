@@ -6,8 +6,11 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  Monitor,
+  Moon,
   Plug,
   ShieldAlert,
+  Sun,
   Unplug,
 } from 'lucide-react'
 import {
@@ -212,36 +215,47 @@ export default function Settings() {
       <Card>
         <SectionLabel>Appearance</SectionLabel>
 
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
           <div>
-            <p className="text-sm font-medium">Sidebar</p>
+            <p className="text-sm font-medium">Theme</p>
             <p className="mb-2 text-xs text-muted-foreground">
-              How the sidebar starts on a fresh browser. Collapsing it by hand
-              still wins for the rest of the session.
+              System follows your device, including when it switches at
+              sunset.
             </p>
             <div className="flex gap-1.5">
-              {(['expanded', 'collapsed'] as const).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => update({ sidebarDefault: v })}
-                  className={cn(
-                    'rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition',
-                    prefs.sidebarDefault === v
-                      ? 'bg-primary-soft text-primary'
-                      : 'border border-border bg-card text-muted-foreground hover:bg-muted',
-                  )}
-                >
-                  {v}
-                </button>
-              ))}
+              {(
+                [
+                  { v: 'light', icon: Sun, label: 'Light' },
+                  { v: 'dark', icon: Moon, label: 'Dark' },
+                  { v: 'system', icon: Monitor, label: 'System' },
+                ] as const
+              ).map((o) => {
+                const Icon = o.icon
+                return (
+                  <button
+                    key={o.v}
+                    type="button"
+                    onClick={() => update({ theme: o.v })}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition',
+                      prefs.theme === o.v
+                        ? 'bg-primary-soft text-primary'
+                        : 'border border-border bg-card text-muted-foreground hover:bg-muted',
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {o.label}
+                  </button>
+                )
+              })}
             </div>
           </div>
 
           <div>
             <p className="text-sm font-medium">Density</p>
             <p className="mb-2 text-xs text-muted-foreground">
-              Compact tightens list spacing.
+              Compact tightens rows on the table-heavy screens so more fits on
+              one page.
             </p>
             <div className="flex gap-1.5">
               {(['comfortable', 'compact'] as const).map((v) => (

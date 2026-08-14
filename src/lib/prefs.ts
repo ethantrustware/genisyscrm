@@ -6,23 +6,30 @@ import { useCallback, useEffect, useState } from 'react'
  * Cosmetic only, and deliberately client-side: hiding a tab hides the
  * link, not the data — every endpoint still enforces its own permissions.
  * If these ever need to mean "cannot access", they have to move to the
- * Hub and be checked server-side. Treating a local preference as a
- * security boundary is how people end up surprised.
+ * Hub and be checked server-side. A local preference is not a boundary.
  *
  * Keyed by account so two people sharing a browser don't inherit each
  * other's layout.
+ *
+ * Every setting here must visibly do something. An earlier version stored
+ * a "sidebar default" (already available from the collapse button) and a
+ * density value that nothing read — controls that look functional and
+ * aren't are worse than no controls, because they cost trust.
  */
+
+export type Theme = 'light' | 'dark' | 'system'
+export type Density = 'comfortable' | 'compact'
 
 export type Prefs = {
   hiddenTabs: string[]
-  density: 'comfortable' | 'compact'
-  sidebarDefault: 'expanded' | 'collapsed'
+  density: Density
+  theme: Theme
 }
 
 export const DEFAULT_PREFS: Prefs = {
   hiddenTabs: [],
   density: 'comfortable',
-  sidebarDefault: 'expanded',
+  theme: 'system',
 }
 
 const keyFor = (who: string) => `genisys.prefs.${who || 'demo'}`
@@ -30,48 +37,102 @@ const keyFor = (who: string) => `genisys.prefs.${who || 'demo'}`
 export function readPrefs(who: string): Prefs {
   try {
     const raw = localStorage.getItem(keyFor(who))
-    if (!raw) return DEFAULT_PREFS
+    if (!raw) return { ...DEFAULT_PREFS, theme: readLegacyTheme() }
     const parsed = JSON.parse(raw) as Partial<Prefs>
     return {
       hiddenTabs: Array.isArray(parsed.hiddenTabs) ? parsed.hiddenTabs : [],
       density: parsed.density === 'compact' ? 'compact' : 'comfortable',
-      sidebarDefault:
-        parsed.sidebarDefault === 'collapsed' ? 'collapsed' : 'expanded',
+      theme:
+        parsed.theme === 'light' || parsed.theme === 'dark'
+          ? parsed.theme
+          : parsed.theme === 'system'
+            ? 'system'
+            : readLegacyTheme(),
     }
   } catch {
     return DEFAULT_PREFS
   }
 }
 
+/** The sidebar toggle wrote a bare 'theme' key before this existed. */
+function readLegacyTheme(): Theme {
+  try {
+    const t = localStorage.getItem('theme')
+    return t === 'dark' || t === 'light' ? t : 'system'
+  } catch {
+    return 'system'
+  }
+}
+
 export function writePrefs(who: string, prefs: Prefs) {
   try {
     localStorage.setItem(keyFor(who), JSON.stringify(prefs))
-    // Same-tab listeners: the storage event only fires in *other* tabs, so
-    // without this the sidebar wouldn't react until a reload.
+    // The storage event only fires in *other* tabs, so same-tab listeners
+    // need an explicit nudge or the UI won't react until a reload.
     window.dispatchEvent(new CustomEvent('genisys:prefs'))
   } catch {
     /* storage blocked — preferences just won't persist */
   }
 }
 
+/** Resolve `system` against the OS setting and apply it to <html>. */
+export function applyTheme(theme: Theme) {
+  if (typeof document === 'undefined') return
+  const dark =
+    theme === 'dark' ||
+    (theme === 'system' &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches)
+  document.documentElement.classList.toggle('dark', dark)
+  try {
+    // Kept in sync so the no-flash bootstrap in index.html still works.
+    if (theme === 'system') localStorage.removeItem('theme')
+    else localStorage.setItem('theme', theme)
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Density is a data attribute; styles.css does the rest. */
+export function applyDensity(density: Density) {
+  if (typeof document === 'undefined') return
+  document.documentElement.setAttribute('data-density', density)
+}
+
 /**
  * SSR-safe preferences hook. Starts at defaults so the server render and
- * first client render agree, then loads real values after mount.
+ * the first client render agree, then loads real values after mount.
  */
 export function usePrefs(who: string) {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS)
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    setPrefs(readPrefs(who))
+    const loaded = readPrefs(who)
+    setPrefs(loaded)
+    applyTheme(loaded.theme)
+    applyDensity(loaded.density)
     setReady(true)
 
-    const sync = () => setPrefs(readPrefs(who))
+    const sync = () => {
+      const next = readPrefs(who)
+      setPrefs(next)
+      applyTheme(next.theme)
+      applyDensity(next.density)
+    }
     window.addEventListener('genisys:prefs', sync)
     window.addEventListener('storage', sync)
+
+    // Follow the OS when set to system.
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const onScheme = () => {
+      if (readPrefs(who).theme === 'system') applyTheme('system')
+    }
+    mq.addEventListener('change', onScheme)
+
     return () => {
       window.removeEventListener('genisys:prefs', sync)
       window.removeEventListener('storage', sync)
+      mq.removeEventListener('change', onScheme)
     }
   }, [who])
 
@@ -80,6 +141,8 @@ export function usePrefs(who: string) {
       setPrefs((cur) => {
         const next = { ...cur, ...patch }
         writePrefs(who, next)
+        if (patch.theme) applyTheme(next.theme)
+        if (patch.density) applyDensity(next.density)
         return next
       })
     },

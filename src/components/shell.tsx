@@ -119,16 +119,12 @@ function Sidebar({ mobileOpen }: { mobileOpen: boolean }) {
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('sidebar-collapsed')
-      // No explicit choice yet — fall back to the preference.
-      setCollapsed(
-        saved === null ? prefs.sidebarDefault === 'collapsed' : saved === 'true',
-      )
+      setCollapsed(localStorage.getItem('sidebar-collapsed') === 'true')
     } catch {
       /* ignore */
     }
     setHydrated(true)
-  }, [prefs.sidebarDefault])
+  }, [])
 
   useEffect(() => {
     if (!hydrated) return
