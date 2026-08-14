@@ -37,7 +37,7 @@ const ROLES = [
   { value: 'admin', label: 'Admin — full Hub access' },
   { value: 'member', label: 'Member — staff, no admin areas' },
   { value: 'agent', label: 'Agent — agent portal only' },
-  { value: 'crm_user', label: 'CRM user — this app only' },
+  { value: 'crm_user', label: 'Staff — Genisys staff, this app only' },
   { value: 'agent_denied', label: 'Agent (denied)' },
   { value: 'crm_denied', label: 'CRM (denied)' },
 ]

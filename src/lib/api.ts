@@ -1241,7 +1241,7 @@ export function roleLabel(role: string | null | undefined): string {
     admin: 'Admin',
     member: 'Member',
     agent: 'Agent',
-    crm_user: 'CRM user',
+    crm_user: 'Staff',
     crm_pending: 'Pending approval',
     crm_denied: 'No access',
     agent_pending: 'Pending approval',
@@ -1510,4 +1510,119 @@ export async function downloadDocument(
   } catch {
     return { ok: false, error: 'Could not reach the Hub.' }
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Time clock                                                                */
+/* -------------------------------------------------------------------------- */
+
+export type ClockEntry = {
+  id: string
+  userId: string
+  userName: string | null
+  userEmail: string
+  clockInAt: string
+  clockOutAt: string | null
+  minutes: number
+  open: boolean
+  note: string | null
+  closedByAdmin: boolean
+}
+
+export type ClockState = {
+  me: { id: string; name: string | null; email: string; role: string } | null
+  isAdmin: boolean
+  scope: 'me' | 'all'
+  from: string
+  to: string
+  current: ClockEntry | null
+  onNow: ClockEntry[]
+  entries: ClockEntry[]
+}
+
+/**
+ * Shifts overlapping a window.
+ *
+ * The window is computed in the browser and sent explicitly, because
+ * "this week" depends on the viewer's timezone and the server has no
+ * business guessing — Mary is ~7 hours off the US team.
+ */
+export async function fetchClock(opts: {
+  from: Date
+  to: Date
+  scope?: 'me' | 'all'
+}): Promise<ClockState> {
+  if (!isLive()) {
+    return {
+      me: null,
+      isAdmin: false,
+      scope: 'me',
+      from: opts.from.toISOString(),
+      to: opts.to.toISOString(),
+      current: null,
+      onNow: [],
+      entries: [],
+    }
+  }
+  const q = new URLSearchParams({
+    from: opts.from.toISOString(),
+    to: opts.to.toISOString(),
+  })
+  if (opts.scope === 'all') q.set('scope', 'all')
+  return get<ClockState>(`/clock?${q.toString()}`)
+}
+
+export async function clockPunch(
+  action: 'in' | 'out',
+  note?: string,
+): Promise<ClockEntry> {
+  const d = await write<{ entry: ClockEntry }>('/clock', 'POST', {
+    action,
+    ...(note ? { note } : {}),
+  })
+  return d.entry
+}
+
+/** Admin: close a shift somebody forgot to end. */
+export async function closeShift(
+  entryId: string,
+  endAt: Date,
+  note?: string,
+): Promise<ClockEntry> {
+  const d = await write<{ entry: ClockEntry }>('/clock', 'PATCH', {
+    entryId,
+    endAt: endAt.toISOString(),
+    ...(note ? { note } : {}),
+  })
+  return d.entry
+}
+
+/** "7h 32m" — how a person says a shift length, not 7.53. */
+export function formatDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  if (h === 0) return `${m}m`
+  if (m === 0) return `${h}h`
+  return `${h}h ${m}m`
+}
+
+/**
+ * Monday 00:00 local for the week containing `d`.
+ *
+ * Monday, not Sunday: shifts are worked on weekdays and a Sunday-start
+ * week splits a normal work week across two columns.
+ */
+export function startOfWeek(d: Date): Date {
+  const out = new Date(d)
+  out.setHours(0, 0, 0, 0)
+  // getDay(): 0 = Sunday. Shift so Monday is 0 and Sunday is 6.
+  const offset = (out.getDay() + 6) % 7
+  out.setDate(out.getDate() - offset)
+  return out
+}
+
+export function addDays(d: Date, n: number): Date {
+  const out = new Date(d)
+  out.setDate(out.getDate() + n)
+  return out
 }

@@ -9,6 +9,7 @@ import {
 } from '@tanstack/react-router'
 import {
   Building2,
+  Clock,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
@@ -22,6 +23,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
+  PhoneCall,
   Plug,
   Sun,
   Users,
@@ -54,6 +56,10 @@ const NAV = [
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },
   { to: '/crm', label: 'CRM', icon: MessagesSquare },
   { to: '/opportunities', label: 'Opportunities', icon: KanbanSquare },
+  // Clock sits directly above Call Center: both are the day-to-day
+  // staff surfaces, and Ethan asked for them as a pair.
+  { to: '/clock', label: 'Clock', icon: Clock },
+  { to: '/call-center', label: 'Call Center', icon: PhoneCall },
   { to: '/clients', label: 'Clients', icon: Building2 },
   { to: '/agents', label: 'Staff', icon: Users },
   { to: '/documents', label: 'Documents', icon: FolderOpen },
