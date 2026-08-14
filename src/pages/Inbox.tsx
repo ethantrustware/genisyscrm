@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Inbox as InboxIcon, Sparkles } from 'lucide-react'
+import { Inbox as InboxIcon, Plus, Sparkles } from 'lucide-react'
 import {
   fetchEmail,
   fetchInbox,
@@ -16,6 +16,7 @@ import {
   SummaryCard,
 } from '@/components/ui'
 import { cn, formatDate } from '@/lib/utils'
+import { ComposeWindow } from '@/components/compose'
 
 function Reader({ id }: { id: string }) {
   const { data, isLoading, isError, error } = useQuery({
@@ -72,6 +73,7 @@ function Reader({ id }: { id: string }) {
 export default function Inbox() {
   const live = useIsLive()
   const [selected, setSelected] = useState<string | null>(null)
+  const [composing, setComposing] = useState(false)
 
   const { data, isLoading, isError, error } = useQuery<InboxRow[]>({
     queryKey: ['inbox'],
@@ -96,6 +98,17 @@ export default function Inbox() {
         title="Inbox"
         breadcrumbs={[{ label: 'Genisys' }, { label: 'Inbox' }]}
         subtitle={live ? undefined : 'Showing demo data.'}
+        actions={
+          <button
+            type="button"
+            onClick={() => setComposing(true)}
+            title="New email"
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-soft transition hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" />
+            Compose
+          </button>
+        }
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -177,6 +190,10 @@ export default function Inbox() {
             )}
           </div>
         </div>
+      )}
+
+      {composing && (
+        <ComposeWindow live={live} onClose={() => setComposing(false)} />
       )}
     </div>
   )

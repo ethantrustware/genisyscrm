@@ -1367,3 +1367,39 @@ export async function startConversation(input: {
     return { ok: false, error: 'Could not reach the Hub.' }
   }
 }
+
+/** Connected Gmail accounts that can be sent from. */
+export async function fetchMailAccounts(): Promise<{
+  accounts: Array<{ email: string; messages: number }>
+}> {
+  if (!isLive()) {
+    return { accounts: [{ email: 'alex@leadgenisys.com', messages: 0 }] }
+  }
+  return get('/inbox/accounts')
+}
+
+/** Send an email through a connected Gmail account. Real mail. */
+export async function sendMail(input: {
+  from?: string
+  to: string
+  subject: string
+  body: string
+}): Promise<{ ok: boolean; error?: string }> {
+  const conn = getConnection()
+  if (!conn) return { ok: false, error: 'Sign in to send email.' }
+  try {
+    const res = await fetch(`${conn.base}/api/external/v1/inbox/send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${conn.token}`,
+      },
+      body: JSON.stringify(input),
+    })
+    const d = (await res.json().catch(() => ({}))) as { error?: string }
+    if (!res.ok) return { ok: false, error: d.error ?? 'Send failed.' }
+    return { ok: true }
+  } catch {
+    return { ok: false, error: 'Could not reach the Hub.' }
+  }
+}
