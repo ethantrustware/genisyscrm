@@ -1403,3 +1403,111 @@ export async function sendMail(input: {
     return { ok: false, error: 'Could not reach the Hub.' }
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Documents (write)                                                         */
+/* -------------------------------------------------------------------------- */
+
+export type DocFolder = {
+  id: string
+  name: string
+  parentId: string | null
+  documentCount: number
+  createdAt: string
+}
+
+export async function fetchFolders(): Promise<{ folders: DocFolder[] }> {
+  if (!isLive()) {
+    return {
+      folders: [
+        { id: 'f1', name: 'SOPs', parentId: null, documentCount: 2, createdAt: '2026-05-01T00:00:00.000Z' },
+        { id: 'f2', name: 'Contracts', parentId: null, documentCount: 1, createdAt: '2026-05-01T00:00:00.000Z' },
+        { id: 'f3', name: 'Training', parentId: null, documentCount: 1, createdAt: '2026-05-01T00:00:00.000Z' },
+      ],
+    }
+  }
+  return get('/documents/folders')
+}
+
+export const createFolder = (name: string) =>
+  write<{ id: string; name: string }>('/documents/folders', 'POST', { name })
+
+export const deleteFolder = (id: string) =>
+  write<{ id: string }>(
+    `/documents/folders?id=${encodeURIComponent(id)}`,
+    'DELETE',
+  )
+
+export const moveDocument = (id: string, patch: Record<string, unknown>) =>
+  write<{ id: string }>('/documents/move', 'PATCH', { id, ...patch })
+
+export const deleteDocument = (id: string) =>
+  write<{ id: string }>(`/documents/${id}`, 'DELETE')
+
+/**
+ * Upload a file.
+ *
+ * Content-Type is deliberately NOT set: the browser has to generate the
+ * multipart boundary itself, and setting it by hand produces a body the
+ * server cannot parse.
+ */
+export async function uploadDocument(
+  file: File,
+  folderId?: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const conn = getConnection()
+  if (!conn) return { ok: false, error: 'Sign in to upload files.' }
+
+  const form = new FormData()
+  form.append('file', file)
+  if (folderId) form.append('folderId', folderId)
+
+  try {
+    const res = await fetch(`${conn.base}/api/external/v1/documents/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${conn.token}` },
+      body: form,
+    })
+    const d = (await res.json().catch(() => ({}))) as { error?: string }
+    if (!res.ok) return { ok: false, error: d.error ?? 'Upload failed.' }
+    return { ok: true }
+  } catch {
+    return { ok: false, error: 'Could not reach the Hub.' }
+  }
+}
+
+/**
+ * Download a file.
+ *
+ * Fetched rather than linked: the endpoint needs an Authorization header,
+ * which a plain <a href> cannot send. The bytes come back as a blob and
+ * are handed to a temporary link so the browser saves them properly.
+ */
+export async function downloadDocument(
+  id: string,
+  filename: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const conn = getConnection()
+  if (!conn) return { ok: false, error: 'Sign in to download files.' }
+
+  try {
+    const res = await fetch(`${conn.base}/api/external/v1/documents/${id}`, {
+      headers: { Authorization: `Bearer ${conn.token}` },
+    })
+    if (!res.ok) return { ok: false, error: 'Could not download that file.' }
+
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    // Revoke on the next tick — immediately can cancel the download.
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+    return { ok: true }
+  } catch {
+    return { ok: false, error: 'Could not reach the Hub.' }
+  }
+}
