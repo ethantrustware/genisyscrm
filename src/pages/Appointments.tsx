@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { CalendarX2, ShieldCheck } from 'lucide-react'
-import { fetchAppointments, isLive, type Appointment } from '@/lib/api'
+import { fetchAppointments, useIsLive, type Appointment } from '@/lib/api'
 import {
   Chip,
   EmptyCard,
@@ -18,6 +18,7 @@ import { cn, formatDate } from '@/lib/utils'
  * the Hub's external API — this app never receives raw consumer PII.
  */
 export default function Appointments() {
+  const live = useIsLive()
   const [client, setClient] = useState('all')
   const [status, setStatus] = useState('all')
 
@@ -58,7 +59,7 @@ export default function Appointments() {
       <PageHeader
         title="Appointments"
         breadcrumbs={[{ label: 'Genisys' }, { label: 'Appointments' }]}
-        subtitle={isLive() ? undefined : 'Showing demo data.'}
+        subtitle={live ? undefined : 'Showing demo data.'}
       />
 
       <div className="flex flex-wrap items-center gap-3">

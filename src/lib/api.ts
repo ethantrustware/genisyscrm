@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+
 /**
  * Client for the Hub's external API.
  *
@@ -45,6 +47,21 @@ export function clearConnection() {
 
 export function isLive(): boolean {
   return getConnection() !== null
+}
+
+/**
+ * SSR-safe version of isLive().
+ *
+ * TanStack Start renders this app on the server, where localStorage
+ * doesn't exist — so the server always produces the demo state. Reading
+ * storage during the first client render instead would disagree with
+ * that markup and trigger a hydration mismatch, so we correct in an
+ * effect after mount.
+ */
+export function useIsLive(): boolean {
+  const [live, setLive] = useState(false)
+  useEffect(() => setLive(isLive()), [])
+  return live
 }
 
 /* -------------------------------------------------------------------------- */

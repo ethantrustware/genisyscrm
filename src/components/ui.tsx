@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from '@tanstack/react-router'
 import { AlertCircle, Loader2 } from 'lucide-react'
 import { cn, initials } from '@/lib/utils'
 

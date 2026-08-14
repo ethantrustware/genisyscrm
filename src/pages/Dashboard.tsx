@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link } from '@tanstack/react-router'
 import { ArrowRight, Inbox } from 'lucide-react'
 import {
   fetchAppointments,
   fetchStats,
-  isLive,
+  useIsLive,
   type Appointment,
   type Stats,
 } from '@/lib/api'
@@ -21,6 +21,7 @@ import {
 import { formatDate } from '@/lib/utils'
 
 export default function Dashboard() {
+  const live = useIsLive()
   const stats = useQuery<Stats>({ queryKey: ['stats'], queryFn: fetchStats })
   const appts = useQuery<Appointment[]>({
     queryKey: ['appointments'],
@@ -49,7 +50,7 @@ export default function Dashboard() {
         title="Dashboard"
         breadcrumbs={[{ label: 'Genisys' }, { label: 'Dashboard' }]}
         subtitle={
-          isLive()
+          live
             ? undefined
             : 'Showing demo data — connect to the Hub to see live numbers.'
         }

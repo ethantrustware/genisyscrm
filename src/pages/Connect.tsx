@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { CheckCircle2, Loader2, Plug, ShieldAlert, Unplug } from 'lucide-react'
 import {
@@ -28,9 +28,18 @@ import { cn } from '@/lib/utils'
  */
 export default function Connect() {
   const queryClient = useQueryClient()
-  const existing = getConnection()
 
-  const [base, setBase] = useState(existing?.base ?? DEFAULT_HUB)
+  // Server-rendered: read storage after mount, never during render.
+  const [existing, setExisting] = useState<ReturnType<
+    typeof getConnection
+  > | null>(null)
+  useEffect(() => setExisting(getConnection()), [])
+
+  const [base, setBase] = useState(DEFAULT_HUB)
+  useEffect(() => {
+    const c = getConnection()
+    if (c) setBase(c.base)
+  }, [])
   const [token, setToken] = useState('')
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(
@@ -43,6 +52,7 @@ export default function Connect() {
     const r = await testConnection(base, token)
     if (r.ok) {
       setConnection(base, token)
+      setExisting(getConnection())
       queryClient.invalidateQueries()
     }
     setResult(r)
@@ -51,6 +61,7 @@ export default function Connect() {
 
   const disconnect = () => {
     clearConnection()
+    setExisting(null)
     setToken('')
     setResult({ ok: true, message: 'Disconnected — back to demo data.' })
     queryClient.invalidateQueries()

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, NavLink, useLocation } from 'react-router-dom'
+import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import {
   Building2,
   CalendarCheck,
@@ -13,14 +13,15 @@ import {
   Sun,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { isLive } from '@/lib/api'
+import { useIsLive } from '@/lib/api'
 
 /**
  * App shell — a port of the Hub's sidebar + layout, class-for-class, so
  * this app reads as the same product rather than a lookalike.
  *
- * Sidebar is 260px expanded / 68px collapsed, collapse persisted to
- * localStorage under the same key the Hub uses.
+ * This route is server-rendered, so every browser-only value starts at a
+ * neutral default and is corrected in an effect after mount. Reading
+ * localStorage during render would disagree with the server markup.
  */
 
 const NAV = [
@@ -31,11 +32,12 @@ const NAV = [
 ]
 
 function useTheme() {
-  const [dark, setDark] = useState(
-    () =>
-      typeof document !== 'undefined' &&
-      document.documentElement.classList.contains('dark'),
-  )
+  const [dark, setDark] = useState(false)
+
+  useEffect(() => {
+    setDark(document.documentElement.classList.contains('dark'))
+  }, [])
+
   const toggle = () => {
     const next = !dark
     setDark(next)
@@ -46,29 +48,35 @@ function useTheme() {
       /* storage blocked — theme just won't persist */
     }
   }
+
   return { dark, toggle }
 }
 
 function Sidebar({ mobileOpen }: { mobileOpen: boolean }) {
-  const [collapsed, setCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem('sidebar-collapsed') === 'true'
-    } catch {
-      return false
-    }
-  })
+  const [collapsed, setCollapsed] = useState(false)
+  const [hydrated, setHydrated] = useState(false)
   const { dark, toggle } = useTheme()
-  const { pathname } = useLocation()
+  const live = useIsLive()
+
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
 
   useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem('sidebar-collapsed') === 'true')
+    } catch {
+      /* ignore */
+    }
+    setHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (!hydrated) return
     try {
       localStorage.setItem('sidebar-collapsed', String(collapsed))
     } catch {
       /* ignore */
     }
-  }, [collapsed])
-
-  const live = isLive()
+  }, [collapsed, hydrated])
 
   return (
     <aside
@@ -131,7 +139,7 @@ function Sidebar({ mobileOpen }: { mobileOpen: boolean }) {
           const active =
             item.to === '/' ? pathname === '/' : pathname.startsWith(item.to)
           return (
-            <NavLink
+            <Link
               key={item.to}
               to={item.to}
               className={cn(
@@ -154,7 +162,7 @@ function Sidebar({ mobileOpen }: { mobileOpen: boolean }) {
                   {active && <ChevronRight className="h-4 w-4 opacity-60" />}
                 </>
               )}
-            </NavLink>
+            </Link>
           )
         })}
       </nav>
@@ -186,9 +194,10 @@ function Sidebar({ mobileOpen }: { mobileOpen: boolean }) {
   )
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+/** Layout route component — pages render through <Outlet />. */
+export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
-  const { pathname } = useLocation()
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
 
   // Close the drawer on navigation.
   useEffect(() => setMobileOpen(false), [pathname])
@@ -209,7 +218,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span className="text-sm font-semibold tracking-tight">Genisys</span>
         </header>
         <main className="flex-1 overflow-y-auto px-6 py-6 lg:px-10 lg:py-8">
-          {children}
+          <Outlet />
         </main>
       </div>
     </div>

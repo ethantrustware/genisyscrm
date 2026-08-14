@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Building2, Search, X } from 'lucide-react'
-import { fetchClients, isLive, type Client } from '@/lib/api'
+import { fetchClients, useIsLive, type Client } from '@/lib/api'
 import {
   Avatar,
   Chip,
@@ -19,6 +19,7 @@ import { cn, formatDate } from '@/lib/utils'
  * dimmed group underneath.
  */
 export default function Clients() {
+  const live = useIsLive()
   const [query, setQuery] = useState('')
   const { data, isLoading, isError, error } = useQuery<Client[]>({
     queryKey: ['clients'],
@@ -111,7 +112,7 @@ export default function Clients() {
       <PageHeader
         title="Clients"
         breadcrumbs={[{ label: 'Genisys' }, { label: 'Clients' }]}
-        subtitle={isLive() ? undefined : 'Showing demo data.'}
+        subtitle={live ? undefined : 'Showing demo data.'}
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
