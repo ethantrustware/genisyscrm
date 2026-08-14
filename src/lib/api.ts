@@ -961,3 +961,39 @@ export async function fetchCalendar(
   if (to) q.set('to', to)
   return get(`/calendar?${q.toString()}`)
 }
+
+export type Meeting = {
+  id: string
+  title: string
+  startTime: string | null
+  endTime: string | null
+  contactName: string | null
+  calendarName: string | null
+  status: string | null
+  joinUrl: string | null
+  joinKind: string | null
+  joinLabel: string | null
+}
+
+/** Booked calendar meetings. Distinct from appointments — these can carry
+ *  a Zoom/Meet/Teams link, which is what the Join button opens. */
+export async function fetchMeetings(): Promise<{ meetings: Meeting[] }> {
+  if (!isLive()) return { meetings: MOCK_MEETINGS }
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+  return get(`/meetings?tz=${encodeURIComponent(tz)}`)
+}
+
+const MOCK_MEETINGS: Meeting[] = [
+  {
+    id: 'mt1',
+    title: 'Growth Strategy Follow-up Call: Lead Genisys',
+    startTime: new Date(Date.now() + 45 * 60 * 1000).toISOString(),
+    endTime: new Date(Date.now() + 75 * 60 * 1000).toISOString(),
+    contactName: 'Paige Kemper',
+    calendarName: 'Sales',
+    status: 'confirmed',
+    joinUrl: 'https://meet.google.com/demo-abc-defg',
+    joinKind: 'meet',
+    joinLabel: 'Join Meet',
+  },
+]

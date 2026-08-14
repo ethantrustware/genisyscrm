@@ -1,12 +1,22 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, Circle, ClipboardList, Plus, Trash2 } from 'lucide-react'
+import {
+  CalendarClock,
+  CheckCircle2,
+  Circle,
+  ClipboardList,
+  Plus,
+  Trash2,
+  Video,
+} from 'lucide-react'
 import {
   createTask,
   deleteTask,
+  fetchMeetings,
   fetchToday,
   updateTask,
   useIsLive,
+  type Meeting,
   type TodayData,
 } from '@/lib/api'
 import {
@@ -26,6 +36,107 @@ import { cn, formatDate } from '@/lib/utils'
 
 const PRIORITY_TONE = { high: 'pink', medium: 'amber', low: 'blue' } as const
 
+
+/**
+ * Next up — the soonest booked meetings, with a join link when the
+ * calendar event carries one. "Over" is shown rather than hiding the row,
+ * because a meeting that just ended is still the thing you're looking for.
+ */
+function NextUp({ meetings }: { meetings: Meeting[] }) {
+  if (meetings.length === 0) return null
+  const now = Date.now()
+
+  return (
+    <div>
+      <h2 className="mb-3 text-sm font-semibold">
+        Next up · {meetings.length}
+      </h2>
+      <ul className="flex flex-col gap-2">
+        {meetings.map((m) => {
+          const start = m.startTime ? new Date(m.startTime) : null
+          const end = m.endTime ? new Date(m.endTime) : null
+          const over = end ? end.getTime() < now : false
+          const live =
+            start && end
+              ? start.getTime() <= now && end.getTime() >= now
+              : false
+
+          return (
+            <li
+              key={m.id}
+              className={cn(
+                'flex flex-wrap items-center gap-3 rounded-2xl border bg-card px-4 py-3',
+                live ? 'border-primary/50 shadow-soft' : 'border-border',
+              )}
+            >
+              <div className="w-[86px] flex-shrink-0">
+                <p className="text-sm font-semibold tabular-nums">
+                  {start
+                    ? start.toLocaleTimeString('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      })
+                    : '—'}
+                </p>
+                {end && (
+                  <p className="text-[11px] tabular-nums text-muted-foreground">
+                    –{' '}
+                    {end.toLocaleTimeString('en-US', {
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}
+                  </p>
+                )}
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm">
+                  {m.contactName && (
+                    <span className="font-semibold">{m.contactName} · </span>
+                  )}
+                  {m.title}
+                </p>
+                {m.calendarName && (
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    {m.calendarName}
+                  </p>
+                )}
+              </div>
+
+              {live && (
+                <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                  Now
+                </span>
+              )}
+              {over && !live && (
+                <span className="rounded-full bg-rose-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                  Over
+                </span>
+              )}
+
+              {m.joinUrl ? (
+                <a
+                  href={m.joinUrl}
+                  target={m.joinKind === 'phone' ? undefined : '_blank'}
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground shadow-soft transition hover:bg-primary/90"
+                >
+                  <Video className="h-3.5 w-3.5" />
+                  {m.joinLabel ?? 'Join'}
+                </a>
+              ) : (
+                <span className="text-[11px] text-muted-foreground">
+                  No link
+                </span>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
 export default function Today() {
   const live = useIsLive()
   const queryClient = useQueryClient()
@@ -36,6 +147,13 @@ export default function Today() {
   const { data, isLoading, isError, error: qErr } = useQuery<TodayData>({
     queryKey: ['today'],
     queryFn: fetchToday,
+  })
+
+  // Re-fetched every minute so the Now / Over badges stay honest.
+  const meetings = useQuery({
+    queryKey: ['meetings'],
+    queryFn: fetchMeetings,
+    refetchInterval: 60_000,
   })
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['today'] })
@@ -205,8 +323,13 @@ export default function Today() {
         )}
       </Card>
 
+      <NextUp meetings={meetings.data?.meetings ?? []} />
+
       <div>
-        <h2 className="mb-3 text-sm font-semibold">On the calendar today</h2>
+        <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+          <CalendarClock className="h-4 w-4 text-muted-foreground" />
+          Appointments today
+        </h2>
         {d.appointments.length === 0 ? (
           <EmptyCard icon={ClipboardList}>
             No appointments scheduled today.
