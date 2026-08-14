@@ -1,6 +1,12 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Inbox as InboxIcon, Sparkles } from 'lucide-react'
-import { fetchInbox, useIsLive, type InboxRow } from '@/lib/api'
+import {
+  fetchEmail,
+  fetchInbox,
+  useIsLive,
+  type InboxRow,
+} from '@/lib/api'
 import {
   Chip,
   EmptyCard,
@@ -11,8 +17,62 @@ import {
 } from '@/components/ui'
 import { cn, formatDate } from '@/lib/utils'
 
+function Reader({ id }: { id: string }) {
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['email', id],
+    queryFn: () => fetchEmail(id),
+  })
+
+  if (isLoading) return <Loading />
+  if (isError)
+    return (
+      <ErrorCard
+        message={
+          error instanceof Error ? error.message : 'Could not load the email.'
+        }
+      />
+    )
+
+  const m = data!
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="border-b border-border px-4 py-3">
+        <p className="text-sm font-semibold">{m.subject || '(no subject)'}</p>
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+          {m.fromName ? `${m.fromName} · ` : ''}
+          {m.from}
+        </p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">
+          to {m.to} · {formatDate(m.date)}
+        </p>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-4 py-4">
+        {m.bodyText ? (
+          <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed">
+            {m.bodyText}
+          </pre>
+        ) : m.bodyHtml ? (
+          /* Rendered as text, not HTML. Injecting a remote sender's markup
+             into the page would hand them script execution. */
+          <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-muted-foreground">
+            {m.bodyHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()}
+          </pre>
+        ) : (
+          <p className="text-sm italic text-muted-foreground">
+            {m.snippet || 'No body stored for this message.'}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function Inbox() {
   const live = useIsLive()
+  const [selected, setSelected] = useState<string | null>(null)
+
   const { data, isLoading, isError, error } = useQuery<InboxRow[]>({
     queryKey: ['inbox'],
     queryFn: fetchInbox,
@@ -31,7 +91,7 @@ export default function Inbox() {
   const leads = mail.filter((m) => m.isLead).length
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-6">
+    <div className="mx-auto flex max-w-[1280px] flex-col gap-4">
       <PageHeader
         title="Inbox"
         breadcrumbs={[{ label: 'Genisys' }, { label: 'Inbox' }]}
@@ -47,53 +107,75 @@ export default function Inbox() {
       {mail.length === 0 ? (
         <EmptyCard icon={InboxIcon}>Inbox is empty.</EmptyCard>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-border bg-card">
-          <ul>
-            {mail.map((m) => (
-              <li
-                key={m.id}
-                className={cn(
-                  'flex items-start gap-3 border-b border-border-soft px-4 py-3 transition last:border-0 hover:bg-surface-muted',
-                  !m.isRead && 'bg-primary-soft/30',
-                )}
-              >
-                <span
-                  className={cn(
-                    'mt-1.5 h-2 w-2 flex-shrink-0 rounded-full',
-                    m.isRead ? 'bg-transparent' : 'bg-primary',
-                  )}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p
-                      className={cn(
-                        'truncate text-sm',
-                        m.isRead ? 'font-medium' : 'font-semibold',
-                      )}
-                    >
-                      {m.fromName ?? m.from}
-                    </p>
-                    {m.isLead && (
-                      <Chip tone="mint">
-                        <Sparkles className="mr-1 h-3 w-3" />
-                        lead
-                      </Chip>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,380px)_1fr]">
+          <div className="max-h-[68vh] overflow-y-auto rounded-2xl border border-border bg-card">
+            <ul>
+              {mail.map((m) => (
+                <li key={m.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelected(m.id)}
+                    className={cn(
+                      'flex w-full items-start gap-3 border-b border-border-soft px-4 py-3 text-left transition',
+                      m.id === selected
+                        ? 'bg-primary-soft'
+                        : !m.isRead
+                          ? 'bg-primary-soft/30 hover:bg-surface-muted'
+                          : 'hover:bg-surface-muted',
                     )}
-                    {m.category && <Chip tone="blue">{m.category}</Chip>}
-                  </div>
-                  <p className="truncate text-sm">{m.subject}</p>
-                  {m.snippet && (
-                    <p className="truncate text-xs text-muted-foreground">
-                      {m.snippet}
-                    </p>
-                  )}
-                </div>
-                <span className="flex-shrink-0 whitespace-nowrap text-xs text-muted-foreground">
-                  {formatDate(m.date)}
-                </span>
-              </li>
-            ))}
-          </ul>
+                  >
+                    <span
+                      className={cn(
+                        'mt-1.5 h-2 w-2 flex-shrink-0 rounded-full',
+                        m.isRead ? 'bg-transparent' : 'bg-primary',
+                      )}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={cn(
+                            'truncate text-sm',
+                            m.isRead ? 'font-medium' : 'font-semibold',
+                          )}
+                        >
+                          {m.fromName ?? m.from}
+                        </span>
+                        {m.isLead && (
+                          <Chip tone="mint">
+                            <Sparkles className="mr-1 h-3 w-3" />
+                            lead
+                          </Chip>
+                        )}
+                      </span>
+                      <span className="block truncate text-sm">
+                        {m.subject}
+                      </span>
+                      {m.snippet && (
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {m.snippet}
+                        </span>
+                      )}
+                    </span>
+                    <span className="flex-shrink-0 whitespace-nowrap text-[10px] text-muted-foreground">
+                      {formatDate(m.date)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="max-h-[68vh] overflow-hidden rounded-2xl border border-border bg-card">
+            {selected ? (
+              <Reader id={selected} />
+            ) : (
+              <div className="flex h-full min-h-[300px] items-center justify-center p-8 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Pick a message to read it.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

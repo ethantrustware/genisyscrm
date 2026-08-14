@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-router'
 import {
   Building2,
+  CalendarDays,
   CheckCircle2,
   ChevronRight,
   FolderOpen,
@@ -41,6 +42,7 @@ const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutGrid },
   { to: '/today', label: 'Today', icon: CheckCircle2 },
   { to: '/inbox', label: 'Inbox', icon: Inbox },
+  { to: '/calendar', label: 'Calendar', icon: CalendarDays },
   { to: '/appointments', label: 'Call Center', icon: Phone },
   { to: '/crm', label: 'CRM', icon: MessagesSquare },
   { to: '/clients', label: 'Clients', icon: Building2 },

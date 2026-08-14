@@ -1,6 +1,14 @@
-import { useQuery } from '@tanstack/react-query'
-import { CheckCircle2, Circle, ClipboardList } from 'lucide-react'
-import { fetchToday, useIsLive, type TodayData } from '@/lib/api'
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { CheckCircle2, Circle, ClipboardList, Plus, Trash2 } from 'lucide-react'
+import {
+  createTask,
+  deleteTask,
+  fetchToday,
+  updateTask,
+  useIsLive,
+  type TodayData,
+} from '@/lib/api'
 import {
   Card,
   Chip,
@@ -11,6 +19,8 @@ import {
   SectionLabel,
   StatusChip,
   SummaryCard,
+  btnPrimary,
+  inputCls,
 } from '@/components/ui'
 import { cn, formatDate } from '@/lib/utils'
 
@@ -18,27 +28,60 @@ const PRIORITY_TONE = { high: 'pink', medium: 'amber', low: 'blue' } as const
 
 export default function Today() {
   const live = useIsLive()
-  const { data, isLoading, isError, error } = useQuery<TodayData>({
+  const queryClient = useQueryClient()
+  const [title, setTitle] = useState('')
+  const [priority, setPriority] = useState('medium')
+  const [error, setError] = useState<string | null>(null)
+
+  const { data, isLoading, isError, error: qErr } = useQuery<TodayData>({
     queryKey: ['today'],
     queryFn: fetchToday,
+  })
+
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['today'] })
+  const onErr = (e: unknown) =>
+    setError(e instanceof Error ? e.message : 'Something went wrong.')
+
+  const add = useMutation({
+    mutationFn: () => createTask({ title: title.trim(), priority }),
+    onSuccess: () => {
+      setTitle('')
+      setError(null)
+      refresh()
+    },
+    onError: onErr,
+  })
+
+  const toggle = useMutation({
+    mutationFn: (v: { id: string; done: boolean }) =>
+      updateTask(v.id, { done: v.done }),
+    onSuccess: refresh,
+    onError: onErr,
+  })
+
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteTask(id),
+    onSuccess: refresh,
+    onError: onErr,
   })
 
   if (isLoading) return <Loading />
   if (isError)
     return (
       <ErrorCard
-        message={error instanceof Error ? error.message : 'Could not load.'}
+        message={qErr instanceof Error ? qErr.message : 'Could not load.'}
       />
     )
 
   const d = data!
+  const busy = add.isPending || toggle.isPending || remove.isPending
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-6">
       <PageHeader
         title="Today"
         breadcrumbs={[{ label: 'Genisys' }, { label: 'Today' }]}
-        subtitle={live ? undefined : 'Showing demo data.'}
+        subtitle={live ? undefined : 'Showing demo data — changes are disabled.'}
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -49,8 +92,49 @@ export default function Today() {
         />
       </div>
 
+      {error && (
+        <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </p>
+      )}
+
       <Card>
         <SectionLabel>Tasks</SectionLabel>
+
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && live && title.trim() && !busy) {
+                add.mutate()
+              }
+            }}
+            disabled={!live}
+            placeholder={live ? 'Add a task…' : 'Sign in to add tasks'}
+            className={cn(inputCls, 'min-w-[200px] flex-1')}
+          />
+          <select
+            value={priority}
+            onChange={(e) => setPriority(e.target.value)}
+            disabled={!live}
+            className={cn(inputCls, 'w-auto')}
+          >
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+          <button
+            type="button"
+            disabled={!live || !title.trim() || busy}
+            onClick={() => add.mutate()}
+            className={btnPrimary}
+          >
+            <Plus className="h-4 w-4" />
+            Add
+          </button>
+        </div>
+
         {d.tasks.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nothing on the list.</p>
         ) : (
@@ -58,13 +142,22 @@ export default function Today() {
             {d.tasks.map((t) => (
               <li
                 key={t.id}
-                className="flex items-start gap-3 border-t border-border-soft py-3 first:border-t-0"
+                className="group flex items-start gap-3 border-t border-border-soft py-3 first:border-t-0"
               >
-                {t.done ? (
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-500" />
-                ) : (
-                  <Circle className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                )}
+                <button
+                  type="button"
+                  disabled={!live || busy}
+                  onClick={() => toggle.mutate({ id: t.id, done: !t.done })}
+                  className="mt-0.5 flex-shrink-0 disabled:opacity-50"
+                  aria-label={t.done ? 'Reopen task' : 'Complete task'}
+                >
+                  {t.done ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  ) : (
+                    <Circle className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                  )}
+                </button>
+
                 <div className="min-w-0 flex-1">
                   <p
                     className={cn(
@@ -82,6 +175,7 @@ export default function Today() {
                     {t.dueAt ? ` · due ${formatDate(t.dueAt)}` : ''}
                   </p>
                 </div>
+
                 <Chip
                   tone={
                     PRIORITY_TONE[t.priority as keyof typeof PRIORITY_TONE] ??
@@ -90,6 +184,21 @@ export default function Today() {
                 >
                   {t.priority}
                 </Chip>
+
+                {live && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      if (!window.confirm(`Delete "${t.title}"?`)) return
+                      remove.mutate(t.id)
+                    }}
+                    className="opacity-0 transition group-hover:opacity-100"
+                    aria-label="Delete task"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                  </button>
+                )}
               </li>
             ))}
           </ul>

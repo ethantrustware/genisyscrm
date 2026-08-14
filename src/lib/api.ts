@@ -837,3 +837,127 @@ export async function sendCrmMessage(input: {
     return { ok: false, error: 'Could not reach the Hub.' }
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Writes                                                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * All writes go through here. Demo mode is refused up front rather than
+ * faked — a demo that pretends to save is worse than one that says it
+ * can't, because you find out later that nothing was real.
+ */
+async function write<T>(
+  path: string,
+  method: 'POST' | 'PATCH' | 'DELETE',
+  payload?: Record<string, unknown>,
+): Promise<T> {
+  const conn = getConnection()
+  if (!conn) {
+    throw new ApiError('Sign in to make changes — demo mode is read-only.')
+  }
+  const res = await fetch(`${conn.base}/api/external/v1${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${conn.token}`,
+    },
+    body: payload ? JSON.stringify(payload) : undefined,
+  })
+  const d = (await res.json().catch(() => ({}))) as {
+    data?: T
+    error?: string
+  }
+  if (!res.ok) throw new ApiError(d.error ?? 'Something went wrong.')
+  return d.data as T
+}
+
+export type EmailDetail = {
+  id: string
+  from: string
+  fromName: string | null
+  to: string
+  subject: string
+  bodyText: string | null
+  bodyHtml: string | null
+  snippet: string | null
+  date: string
+  isRead: boolean
+  isLead: boolean
+  category: string | null
+  folder: string
+}
+
+export async function fetchEmail(id: string): Promise<EmailDetail> {
+  if (!isLive()) {
+    const row = MOCK_INBOX.find((m) => m.id === id) ?? MOCK_INBOX[0]
+    return {
+      ...row,
+      to: 'alex@leadgenisys.com',
+      bodyText: `${row.snippet ?? ''}\n\n(Demo message — sign in to read real email.)`,
+      bodyHtml: null,
+    }
+  }
+  return get<EmailDetail>(`/inbox/${id}`)
+}
+
+export const createTask = (t: {
+  title: string
+  notes?: string
+  priority?: string
+  dueAt?: string | null
+}) => write<{ id: string }>('/tasks', 'POST', t)
+
+export const updateTask = (id: string, patch: Record<string, unknown>) =>
+  write<{ id: string }>(`/tasks/${id}`, 'PATCH', patch)
+
+export const deleteTask = (id: string) =>
+  write<{ id: string }>(`/tasks/${id}`, 'DELETE')
+
+export const createClient = (c: Record<string, unknown>) =>
+  write<{ id: string; name: string }>('/clients/manage', 'POST', c)
+
+export const updateClient = (id: string, patch: Record<string, unknown>) =>
+  write<{ id: string }>('/clients/manage', 'PATCH', { id, ...patch })
+
+export const updateAgent = (id: string, action: 'revoke' | 'restore') =>
+  write<{ id: string; role: string }>('/agents/manage', 'PATCH', { id, action })
+
+export type CalendarAppt = {
+  id: string
+  apptDateTime: string
+  customerName: string
+  customerPhone: string | null
+  address: string | null
+  status: string
+  dispatchStatus: string
+  clientName: string | null
+  clientColor: string | null
+  agentName: string | null
+}
+
+export async function fetchCalendar(
+  from?: string,
+  to?: string,
+): Promise<{ appointments: CalendarAppt[] }> {
+  if (!isLive()) {
+    return {
+      appointments: MOCK_APPOINTMENTS.map((a) => ({
+        id: a.id,
+        apptDateTime: a.apptDateTime,
+        customerName: a.customerName,
+        customerPhone: a.customerPhone,
+        address: a.address,
+        status: a.status,
+        dispatchStatus: a.dispatchStatus,
+        clientName: a.clientName,
+        clientColor: a.clientColor,
+        agentName: a.agentName,
+      })),
+    }
+  }
+  const q = new URLSearchParams()
+  if (from) q.set('from', from)
+  if (to) q.set('to', to)
+  return get(`/calendar?${q.toString()}`)
+}
