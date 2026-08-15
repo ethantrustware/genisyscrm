@@ -2,7 +2,7 @@ import { Trophy } from 'lucide-react'
 import { EmptyCard, PageHeader } from '@/components/ui'
 
 /**
- * Leaderboard — placeholder.
+ * Scoreboard — placeholder.
  *
  * Greyed out for staff in the sidebar and reachable by admins only, so
  * there is somewhere to build into without showing reps a half-finished
@@ -12,13 +12,13 @@ import { EmptyCard, PageHeader } from '@/components/ui'
  * Blocked on the attribution question: until we know which rep booked a
  * given appointment, any ranking here would be a guess.
  */
-export default function Leaderboard() {
+export default function Scoreboard() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Leaderboard"
+        title="Scoreboard"
         subtitle="Appointments booked, ranked. Not built yet."
-        breadcrumbs={[{ label: 'Genisys' }, { label: 'Leaderboard' }]}
+        breadcrumbs={[{ label: 'Genisys' }, { label: 'Scoreboard' }]}
       />
       <EmptyCard icon={Trophy}>
         Nothing here yet. This waits on per-rep attribution — until we can

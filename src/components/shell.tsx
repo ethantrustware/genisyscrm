@@ -59,7 +59,7 @@ import {
  * being offered a door that won't open.
  *
  * `staffLocked: true` shows the tab to staff but greyed out and
- * unclickable. Call Center and Leaderboard both need an admin view
+ * unclickable. Call Center and Scoreboard both need an admin view
  * distinct from the staff one, and that split isn't designed yet —
  * showing them dimmed signals "coming" instead of pretending they don't
  * exist. Owners can open them and see the placeholder.
@@ -73,7 +73,7 @@ const NAV = [
   { to: '/opportunities', label: 'Opportunities', icon: KanbanSquare },
   { to: '/clock', label: 'Timeclock', icon: Clock },
   { to: '/call-center', label: 'Call Center', icon: PhoneCall, staffLocked: true },
-  { to: '/leaderboard', label: 'Leaderboard', icon: Trophy, staffLocked: true },
+  { to: '/scoreboard', label: 'Scoreboard', icon: Trophy, staffLocked: true },
   { to: '/clients', label: 'Clients', icon: Building2, owner: true },
   { to: '/agents', label: 'Staff', icon: Users, owner: true },
   { to: '/documents', label: 'Documents', icon: FolderOpen },
