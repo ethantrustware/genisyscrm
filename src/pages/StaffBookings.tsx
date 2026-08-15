@@ -86,12 +86,14 @@ const ATTENDANCE: Record<
  */
 function AttendanceCell({
   bookingKey,
+  opportunityId,
   attendance,
   appointmentId,
   subAccount,
   onSaved,
 }: {
   bookingKey: string
+  opportunityId: string
   attendance: Attendance
   appointmentId: string | null
   subAccount: string
@@ -104,7 +106,7 @@ function AttendanceCell({
 
   const save = useMutation({
     mutationFn: (status: 'showed' | 'noshow' | 'unmarked') =>
-      setAttendance({ subAccount, appointmentId: appointmentId!, status }),
+      setAttendance({ opportunityId, subAccount, appointmentId, status }),
     onMutate: (status) => {
       setError(null)
       setOptimistic(status as Attendance)
@@ -117,22 +119,6 @@ function AttendanceCell({
   })
 
   const shown = optimistic ?? attendance
-
-  // Read-only, and it says why. Silently rendering text where every other
-  // row has a dropdown reads as "editing is broken" rather than "this
-  // particular row has nothing to write to".
-  if (!appointmentId) {
-    return (
-      <div className="flex flex-col gap-0.5">
-        <Chip tone={ATTENDANCE[attendance].tone}>
-          {ATTENDANCE[attendance].label}
-        </Chip>
-        <span className="text-[11px] text-amber-600 dark:text-amber-400">
-          no appointment linked
-        </span>
-      </div>
-    )
-  }
 
   return (
     <div className="flex flex-col gap-1">
@@ -349,18 +335,7 @@ export default function StaffBookings() {
               <span className="ml-2 font-normal text-muted-foreground">
                 newest first
               </span>
-              {(() => {
-                const unlinked = data.bookings.filter(
-                  (b) => !b.appointmentId,
-                ).length
-                if (unlinked === 0) return null
-                return (
-                  <span className="ml-2 font-normal text-amber-600 dark:text-amber-400">
-                    · {unlinked} without a linked appointment, so attendance
-                    can&apos;t be set on {unlinked === 1 ? 'it' : 'them'}
-                  </span>
-                )
-              })()}
+
             </h2>
             {data.bookings.length === 0 ? (
               <EmptyCard icon={CalendarCheck}>
@@ -434,29 +409,36 @@ export default function StaffBookings() {
                             <Chip tone="mint">{b.stage}</Chip>
                           </td>
                           <td className="px-4 py-3">
-                            {b.attendance === 'cancelled' ||
-                            b.attendance === 'upcoming' ? (
-                              <Chip tone={ATTENDANCE[b.attendance].tone}>
+                            <AttendanceCell
+                              bookingKey={b.name}
+                              opportunityId={b.id}
+                              attendance={b.attendance}
+                              appointmentId={b.appointmentId}
+                              subAccount={b.subAccount}
+                              onSaved={() =>
+                                qc.invalidateQueries({
+                                  queryKey: ['staff-bookings'],
+                                })
+                              }
+                            />
+                            {/* The appointment's own state still shows —
+                                editing it shouldn't hide that GHL says the
+                                meeting was cancelled or hasn't happened. */}
+                            {(b.attendance === 'cancelled' ||
+                              b.attendance === 'upcoming') && (
+                              <span className="mt-0.5 block text-[11px] text-muted-foreground">
                                 {ATTENDANCE[b.attendance].label}
-                              </Chip>
-                            ) : (
-                              <AttendanceCell
-                                bookingKey={b.name}
-                                attendance={b.attendance}
-                                appointmentId={b.appointmentId}
-                                subAccount={b.subAccount}
-                                onSaved={() =>
-                                  qc.invalidateQueries({
-                                    queryKey: ['staff-bookings'],
-                                  })
-                                }
-                              />
-                            )}
-                            {b.appointmentAt && (
-                              <span className="ml-2 text-xs text-muted-foreground">
-                                {dayFmt.format(new Date(b.appointmentAt))}
+                                {b.appointmentAt &&
+                                  ` · ${dayFmt.format(new Date(b.appointmentAt))}`}
                               </span>
                             )}
+                            {b.attendance !== 'cancelled' &&
+                              b.attendance !== 'upcoming' &&
+                              b.appointmentAt && (
+                                <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                                  {dayFmt.format(new Date(b.appointmentAt))}
+                                </span>
+                              )}
                           </td>
                         </tr>
                       ))}

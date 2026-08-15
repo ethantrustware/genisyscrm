@@ -1699,7 +1699,7 @@ export type Booking = {
   /** From the GHL appointment, set by a human after the call. */
   attendance: Attendance
   appointmentAt: string | null
-  /** Null when no calendar appointment matched — attendance is then read-only. */
+  /** Null when no calendar appointment matched; marking still works. */
   appointmentId: string | null
   subAccount: string
   status: string
@@ -1759,13 +1759,14 @@ export type StaffBookings = {
 /**
  * Mark a booking showed / no-show / not marked.
  *
- * Writes straight to the GHL appointment, which is the same field GHL's
- * own UI uses — there is no second copy to drift.
+ * Keyed by opportunity, so it works on every row. Where a calendar
+ * appointment is linked, the Hub also mirrors the value into GHL.
  */
 export async function setAttendance(input: {
+  opportunityId: string
   subAccount: string
-  appointmentId: string
   status: 'showed' | 'noshow' | 'unmarked'
+  appointmentId?: string | null
 }): Promise<void> {
   await write('/staff-bookings/attendance', 'PATCH', input)
 }
