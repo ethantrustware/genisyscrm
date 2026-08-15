@@ -6,3 +6,6 @@ dist
 .DS_Store
 .wrangler
 src/routeTree.gen.ts
+
+# Local Claude Code state (dev-server launch config, agent scratch).
+.claude/
