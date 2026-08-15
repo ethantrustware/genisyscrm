@@ -33,7 +33,15 @@ import { cn } from '@/lib/utils'
  * second version of the truth.
  */
 
-const WINDOWS = [7, 14, 30] as const
+/**
+ * One fixed window, wide enough that nothing recent falls outside it.
+ *
+ * There used to be a 7/14/30 selector. It stopped meaning anything once
+ * out-of-window rows were shown anyway — it only changed which rows were
+ * dimmed. The periods people actually ask about (today, this week) are
+ * derived below from a single fetch instead.
+ */
+const LOOKBACK_DAYS = 90
 
 const dayFmt = new Intl.DateTimeFormat(undefined, {
   weekday: 'short',
@@ -72,10 +80,9 @@ function dayKey(iso: string): string {
 
 export default function StaffBookings() {
   const live = useIsLive()
-  const [days, setDays] = useState<number>(14)
   const q = useQuery({
-    queryKey: ['staff-bookings', days],
-    queryFn: () => fetchStaffBookings(days),
+    queryKey: ['staff-bookings'],
+    queryFn: () => fetchStaffBookings(LOOKBACK_DAYS),
     enabled: live,
     refetchOnWindowFocus: false,
     staleTime: 120_000,
@@ -99,9 +106,17 @@ export default function StaffBookings() {
 
   const data = q.data
   const todayKey = dayKey(new Date().toISOString())
-  const bookedToday =
-    data?.bookings.filter((b) => b.bookedAt && dayKey(b.bookedAt) === todayKey)
-      .length ?? 0
+  const all = data?.bookings ?? []
+
+  // One fetch, three periods. Counting client-side means switching what
+  // you're looking at costs nothing.
+  const since = (d: number) => Date.now() - d * 86400_000
+  const inLast = (d: number) =>
+    all.filter((b) => b.bookedAt && new Date(b.bookedAt).getTime() >= since(d))
+      .length
+  const bookedToday = all.filter(
+    (b) => b.bookedAt && dayKey(b.bookedAt) === todayKey,
+  ).length
 
   // The floor is per rep per day, so the team target scales with headcount.
   const activeReps = data?.reps.filter((r) => !r.error).length ?? 0
@@ -115,28 +130,11 @@ export default function StaffBookings() {
         breadcrumbs={[{ label: 'Genisys' }, { label: 'Staff Bookings' }]}
         actions={
           <div className="flex items-center gap-2">
-            <div className="inline-flex rounded-xl border border-border p-1">
-              {WINDOWS.map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => setDays(d)}
-                  className={cn(
-                    'rounded-lg px-3 py-1.5 text-sm font-medium transition',
-                    days === d
-                      ? 'bg-primary text-white'
-                      : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  {d}d
-                </button>
-              ))}
-            </div>
             <button
               type="button"
               onClick={async () => {
                 // Bypass the Hub's cache, then repaint from the result.
-                await fetchStaffBookings(days, undefined, true)
+                await fetchStaffBookings(LOOKBACK_DAYS, undefined, true)
                 q.refetch()
               }}
               disabled={q.isFetching}
@@ -176,16 +174,12 @@ export default function StaffBookings() {
                 dailyTarget > 0 && bookedToday >= dailyTarget ? 'good' : 'default'
               }
             />
+            <SummaryCard label="Last 7 days" value={inLast(7)} />
             <SummaryCard
-              label={`Booked in ${days} days`}
-              value={data.totals.bookings}
-              sub={
-                data.totals.bookingsAllTime > data.totals.bookings
-                  ? `${data.totals.bookingsAllTime} in booked stages overall`
-                  : undefined
-              }
+              label="Last 30 days"
+              value={inLast(30)}
+              sub={`${all.length} total in booked stages`}
             />
-            <SummaryCard label="Reps reporting" value={activeReps} />
             <SummaryCard
               label="Sub-accounts erroring"
               value={data.totals.repsWithErrors}
@@ -244,17 +238,7 @@ export default function StaffBookings() {
                         {r.error ? (
                           '—'
                         ) : (
-                          <>
-                            {r.total ?? 0}
-                            {(r.totalAllTime ?? 0) > (r.total ?? 0) && (
-                              <span
-                                className="ml-1 text-xs font-normal text-amber-600 dark:text-amber-400"
-                                title="In the booked stage, but dated outside the window. GHL's updatedAt may be missing, so an old lead booked recently looks old."
-                              >
-                                / {r.totalAllTime} all time
-                              </span>
-                            )}
-                          </>
+                          (r.totalAllTime ?? 0)
                         )}
                       </td>
                     </tr>
@@ -267,13 +251,9 @@ export default function StaffBookings() {
           <div>
             <h2 className="mb-3 text-sm font-semibold">
               Bookings ({data.bookings.length})
-              {data.bookings.some((b) => !b.inWindow) && (
-                <span className="ml-2 font-normal text-muted-foreground">
-                  including{' '}
-                  {data.bookings.filter((b) => !b.inWindow).length} dated
-                  outside {days}d
-                </span>
-              )}
+              <span className="ml-2 font-normal text-muted-foreground">
+                newest first
+              </span>
             </h2>
             {data.bookings.length === 0 ? (
               <EmptyCard icon={CalendarCheck}>
@@ -321,7 +301,6 @@ export default function StaffBookings() {
                           key={`${b.vaultName}-${b.id}`}
                           className={cn(
                             'border-b border-border-soft transition last:border-0 hover:bg-surface-muted',
-                            !b.inWindow && 'opacity-60',
                           )}
                         >
                           <td
@@ -334,11 +313,6 @@ export default function StaffBookings() {
                                 <span className="ml-1 opacity-60">
                                   {timeFmt.format(new Date(b.bookedAt))}
                                 </span>
-                                {!b.inWindow && (
-                                  <span className="ml-1.5 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-600 dark:text-amber-400">
-                                    older
-                                  </span>
-                                )}
                               </>
                             ) : (
                               '—'
