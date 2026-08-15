@@ -1,12 +1,10 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, CalendarCheck, RefreshCw, Search } from 'lucide-react'
+import { AlertTriangle, CalendarCheck, RefreshCw } from 'lucide-react'
 import {
   fetchStaffBookings,
-  findBooking,
   useIsLive,
   type Attendance,
-  type BookingSearch,
 } from '@/lib/api'
 import {
   Chip,
@@ -75,29 +73,6 @@ function dayKey(iso: string): string {
 export default function StaffBookings() {
   const live = useIsLive()
   const [days, setDays] = useState<number>(14)
-  const [findText, setFindText] = useState('')
-  const [search, setSearch] = useState<BookingSearch | null>(null)
-  const [searching, setSearching] = useState(false)
-
-  // Deliberately manual, not a live-as-you-type query: this scans every
-  // pipeline in every sub-account with no date cutoff, which is far too
-  // expensive to fire on a keystroke.
-  const runFind = async () => {
-    const text = findText.trim()
-    if (!text) return
-    setSearching(true)
-    try {
-      setSearch(await findBooking(text, days))
-    } catch (err) {
-      setSearch({
-        find: text,
-        hits: [],
-        hint: err instanceof Error ? err.message : 'Search failed.',
-      })
-    }
-    setSearching(false)
-  }
-
   const q = useQuery({
     queryKey: ['staff-bookings', days],
     queryFn: () => fetchStaffBookings(days),
@@ -217,74 +192,6 @@ export default function StaffBookings() {
               tone={data.totals.repsWithErrors > 0 ? 'bad' : 'default'}
               sub={data.totals.repsWithErrors > 0 ? 'see below' : undefined}
             />
-          </div>
-
-          {/* Missing-booking finder */}
-          <div className="rounded-2xl border border-border bg-card p-5">
-            <div className="mb-2 flex items-center gap-2">
-              <Search className="h-4 w-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold">
-                A booking you expected isn&apos;t here?
-              </h2>
-            </div>
-            <p className="mb-3 text-xs text-muted-foreground">
-              Search every sub-account, every pipeline, every stage, with no
-              date limit. It reports where the record actually lives and which
-              filter is excluding it.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <input
-                value={findText}
-                onChange={(e) => setFindText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') runFind()
-                }}
-                placeholder="Name, email or phone — e.g. Garett Curran"
-                className="min-w-[16rem] flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:border-primary"
-              />
-              <button
-                type="button"
-                onClick={runFind}
-                disabled={searching || !findText.trim()}
-                className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
-              >
-                {searching ? 'Searching…' : 'Find'}
-              </button>
-            </div>
-
-            {search && (
-              <div className="mt-4 flex flex-col gap-3">
-                <p className="text-xs text-muted-foreground">{search.hint}</p>
-                {search.hits.map((h, i) => (
-                  <div
-                    key={i}
-                    className="rounded-xl border border-border bg-surface-muted p-3 text-sm"
-                  >
-                    <p className="font-medium">{h.name}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {h.subAccount} → {h.pipeline} → {h.stage}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      <Chip tone={h.pipelineIsScanned ? 'mint' : 'pink'}>
-                        {h.pipelineIsScanned
-                          ? 'pipeline scanned'
-                          : 'pipeline NOT scanned'}
-                      </Chip>
-                      <Chip tone={h.stageMatchesBookedFilter ? 'mint' : 'pink'}>
-                        {h.stageMatchesBookedFilter
-                          ? 'stage counts as booked'
-                          : 'stage not counted'}
-                      </Chip>
-                      <Chip tone={h.withinWindow ? 'mint' : 'pink'}>
-                        {h.withinWindow
-                          ? 'in window'
-                          : `older than ${days}d`}
-                      </Chip>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Per-rep totals — the leaderboard-shaped read */}
