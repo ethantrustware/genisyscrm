@@ -5,6 +5,7 @@ import {
   fetchStaffBookings,
   findBooking,
   useIsLive,
+  type Attendance,
   type BookingSearch,
 } from '@/lib/api'
 import {
@@ -45,6 +46,25 @@ const timeFmt = new Intl.DateTimeFormat(undefined, {
   hour: 'numeric',
   minute: '2-digit',
 })
+
+/**
+ * How attendance reads in the table.
+ *
+ * "Not marked" is a real, common answer rather than an error: GHL's
+ * show/no-show is set by hand after the call, so until that becomes a
+ * habit most rows will sit here. Showing it plainly is the point — it
+ * makes the size of the gap visible instead of implying everyone showed.
+ */
+const ATTENDANCE: Record<
+  Attendance,
+  { label: string; tone: 'mint' | 'pink' | 'amber' | 'blue' | 'muted' }
+> = {
+  showed: { label: 'Showed', tone: 'mint' },
+  noshow: { label: 'No-show', tone: 'pink' },
+  cancelled: { label: 'Cancelled', tone: 'muted' },
+  upcoming: { label: 'Upcoming', tone: 'blue' },
+  unmarked: { label: 'Not marked', tone: 'amber' },
+}
 
 /** Local YYYY-MM-DD, for grouping bookings into days the viewer recognises. */
 function dayKey(iso: string): string {
@@ -367,6 +387,7 @@ export default function StaffBookings() {
                       <th className="px-4 py-2 font-semibold">Contact</th>
                       <th className="px-4 py-2 font-semibold">Rep</th>
                       <th className="px-4 py-2 font-semibold">Stage</th>
+                      <th className="px-4 py-2 font-semibold">Showed?</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -406,6 +427,16 @@ export default function StaffBookings() {
                           <td className="px-4 py-3">
                             <Chip tone="mint">{b.stage}</Chip>
                           </td>
+                          <td className="px-4 py-3">
+                            <Chip tone={ATTENDANCE[b.attendance].tone}>
+                              {ATTENDANCE[b.attendance].label}
+                            </Chip>
+                            {b.appointmentAt && (
+                              <span className="ml-2 text-xs text-muted-foreground">
+                                {dayFmt.format(new Date(b.appointmentAt))}
+                              </span>
+                            )}
+                          </td>
                         </tr>
                       ))}
                   </tbody>
@@ -414,11 +445,40 @@ export default function StaffBookings() {
             )}
           </div>
 
-          <p className="text-xs text-muted-foreground">
-            Counting pipeline stage “{data.stageFilter}”. Appointment times and
-            details live in Today and Calendar — this view exists to attribute
-            bookings, not to duplicate them.
-          </p>
+          {(() => {
+            const done = data.bookings.filter(
+              (b) => b.attendance === 'showed' || b.attendance === 'noshow',
+            )
+            const unmarked = data.bookings.filter(
+              (b) => b.attendance === 'unmarked',
+            ).length
+            const showed = done.filter((b) => b.attendance === 'showed').length
+            return (
+              <div className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+                {done.length > 0 && (
+                  <p>
+                    <span className="font-semibold text-foreground">
+                      Show rate {Math.round((showed / done.length) * 100)}%
+                    </span>{' '}
+                    — {showed} of {done.length} marked appointments.
+                  </p>
+                )}
+                {unmarked > 0 && (
+                  <p>
+                    {unmarked} past appointment{unmarked === 1 ? '' : 's'} not
+                    marked showed or no-show in GoHighLevel. Attendance is set
+                    by hand after a call, so this column only becomes useful
+                    once that is part of the routine — nothing here infers it.
+                  </p>
+                )}
+                <p>
+                  Counting pipeline stage “{data.stageFilter}”. Appointment
+                  times and details live in Today and Calendar — this view
+                  exists to attribute bookings, not to duplicate them.
+                </p>
+              </div>
+            )
+          })()}
         </>
       )}
     </div>

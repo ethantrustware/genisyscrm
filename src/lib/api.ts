@@ -1685,10 +1685,20 @@ export async function fetchAttribution(days = 30): Promise<AttributionReport> {
 /*  Staff bookings                                                            */
 /* -------------------------------------------------------------------------- */
 
+export type Attendance =
+  | 'showed'
+  | 'noshow'
+  | 'cancelled'
+  | 'upcoming'
+  | 'unmarked'
+
 export type Booking = {
   id: string
   name: string
   stage: string
+  /** From the GHL appointment, set by a human after the call. */
+  attendance: Attendance
+  appointmentAt: string | null
   status: string
   bookedAt: string | null
   createdAt: string | null
@@ -1709,6 +1719,8 @@ export type StaffBookingsRep = {
   /** Pipelines in this sub-account that are NOT scanned. */
   otherPipelines?: string[]
   allStages?: string[]
+  /** False when we couldn't read this sub-account's calendars. */
+  attendanceAvailable?: boolean
   total?: number
   /** Ignores the date window — exposes date-filter problems. */
   totalAllTime?: number
