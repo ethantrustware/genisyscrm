@@ -1706,9 +1706,42 @@ export type StaffBookingsRep = {
   locationId: string
   pipelineName?: string
   bookedStages?: string[]
+  /** Pipelines in this sub-account that are NOT scanned. */
+  otherPipelines?: string[]
+  allStages?: string[]
   total?: number
   error?: string
   bookings: Omit<Booking, 'rep' | 'vaultName'>[]
+}
+
+export type BookingHit = {
+  name: string
+  subAccount: string
+  vaultName: string
+  pipeline: string
+  stage: string
+  stageMatchesBookedFilter: boolean
+  pipelineIsScanned: boolean
+  createdAt: string | null
+  updatedAt: string | null
+  withinWindow: boolean
+}
+
+export type BookingSearch = { find: string; hits: BookingHit[]; hint: string }
+
+/**
+ * Find a booking regardless of every filter the table applies.
+ *
+ * "A booking I know happened isn't showing" has four plausible causes
+ * and they look identical from outside. This reports which one it is.
+ */
+export async function findBooking(
+  text: string,
+  days = 14,
+): Promise<BookingSearch> {
+  if (!isLive()) return { find: text, hits: [], hint: 'Demo mode.' }
+  const q = new URLSearchParams({ find: text, days: String(days) })
+  return get<BookingSearch>(`/staff-bookings?${q.toString()}`)
 }
 
 export type StaffBookings = {
