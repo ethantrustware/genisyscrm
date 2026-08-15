@@ -1626,3 +1626,57 @@ export function addDays(d: Date, n: number): Date {
   out.setDate(out.getDate() + n)
   return out
 }
+
+/* -------------------------------------------------------------------------- */
+/*  GHL attribution diagnostic (one-off)                                      */
+/* -------------------------------------------------------------------------- */
+
+export type AttributionSubAccount = {
+  vaultName: string
+  locationName: string
+  locationId: string
+  userCount: number | null
+  users: Array<{
+    id: string | null
+    name: string | null
+    email: string | null
+  }>
+  usersError?: string
+  calendarCount?: number
+  calendars?: Array<{ id: string; name: string }>
+  eventCount: number | null
+  eventsWithAssignedUser?: number
+  distinctAssignedUserIds?: string[]
+  eventsError?: string
+  sampleEvents?: Array<{
+    id: string | null
+    title: string | null
+    startTime: string | null
+    calendarName: string | null
+    assignedUserId: string | null
+    contactId: string | null
+    appointmentStatus: string | null
+    availableKeys: string[]
+  }>
+}
+
+export type AttributionReport = {
+  window: { start: string; end: string; days: number }
+  verdict: {
+    attribution: string
+    everySubAccountHasExactlyOneUser: boolean
+    subAccountsWithEvents: number
+    totalEvents: number
+    eventsCarryAssignedUserId: boolean
+  }
+  subAccountErrors: Array<{ vaultName: string; error: string }>
+  subAccounts: AttributionSubAccount[]
+}
+
+/**
+ * Runs the attribution diagnostic. Admin session required — the shared
+ * environment token has no role behind it and will be refused.
+ */
+export async function fetchAttribution(days = 30): Promise<AttributionReport> {
+  return get<AttributionReport>(`/diagnostics/ghl-attribution?days=${days}`)
+}
