@@ -139,7 +139,11 @@ export default function StaffBookings() {
             </div>
             <button
               type="button"
-              onClick={() => q.refetch()}
+              onClick={async () => {
+                // Bypass the Hub's cache, then repaint from the result.
+                await fetchStaffBookings(days, undefined, true)
+                q.refetch()
+              }}
               disabled={q.isFetching}
               aria-label="Refresh"
               className="rounded-lg border border-border p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"

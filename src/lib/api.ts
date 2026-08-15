@@ -1771,6 +1771,7 @@ export type StaffBookings = {
 export async function fetchStaffBookings(
   days = 14,
   stage?: string,
+  fresh = false,
 ): Promise<StaffBookings> {
   if (!isLive()) {
     return {
@@ -1784,5 +1785,7 @@ export async function fetchStaffBookings(
   }
   const q = new URLSearchParams({ days: String(days) })
   if (stage) q.set('stage', stage)
+  // The Hub caches this for a minute; the refresh button means "now".
+  if (fresh) q.set('fresh', '1')
   return get<StaffBookings>(`/staff-bookings?${q.toString()}`)
 }
