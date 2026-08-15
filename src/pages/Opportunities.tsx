@@ -374,7 +374,7 @@ export default function Opportunities() {
     'inline-flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-2 text-sm font-medium shadow-soft transition hover:bg-muted focus:outline-none'
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-4">
+    <div className="flex w-full flex-col gap-4">
       <PageHeader
         title="Opportunities"
         breadcrumbs={[{ label: 'Genisys' }, { label: 'Opportunities' }]}
@@ -501,7 +501,7 @@ export default function Opportunities() {
                     move.mutate({ opportunityId: id, stageId: st.id })
                   }}
                   className={cn(
-                    'flex w-[236px] flex-shrink-0 flex-col rounded-2xl border bg-card transition',
+                    'flex w-[288px] flex-shrink-0 flex-col rounded-2xl border bg-card transition',
                     overStage === st.id && live
                       ? 'border-primary ring-2 ring-primary/30'
                       : 'border-border',

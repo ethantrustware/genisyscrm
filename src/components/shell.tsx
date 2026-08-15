@@ -25,12 +25,13 @@ import {
   LogOut,
   PhoneCall,
   Plug,
+  Trophy,
   Sun,
   Users,
   Wallet,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { usePrefs } from '@/lib/prefs'
+import { applyTabOrder, isDarkTheme, usePrefs } from '@/lib/prefs'
 import {
   fetchCurrentUser,
   roleLabel,
@@ -49,50 +50,44 @@ import {
  * localStorage during render would disagree with the server markup.
  */
 
+/**
+ * `owner: true` keeps a tab off staff navigation.
+ *
+ * This is presentation only and is NOT the security boundary — every
+ * owner-only endpoint enforces the same rule server-side and answers 403
+ * regardless of what the sidebar shows. Hiding the link just stops staff
+ * being offered a door that won't open.
+ *
+ * `staffLocked: true` shows the tab to staff but greyed out and
+ * unclickable. Call Center and Leaderboard both need an admin view
+ * distinct from the staff one, and that split isn't designed yet —
+ * showing them dimmed signals "coming" instead of pretending they don't
+ * exist. Owners can open them and see the placeholder.
+ */
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutGrid },
   { to: '/today', label: 'Today', icon: CheckCircle2 },
-  { to: '/inbox', label: 'Inbox', icon: Inbox },
+  { to: '/inbox', label: 'Inbox', icon: Inbox, owner: true },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },
   { to: '/crm', label: 'CRM', icon: MessagesSquare },
   { to: '/opportunities', label: 'Opportunities', icon: KanbanSquare },
-  // Clock sits directly above Call Center: both are the day-to-day
-  // staff surfaces, and Ethan asked for them as a pair.
   { to: '/clock', label: 'Timeclock', icon: Clock },
-  { to: '/call-center', label: 'Call Center', icon: PhoneCall },
-  { to: '/clients', label: 'Clients', icon: Building2 },
-  { to: '/agents', label: 'Staff', icon: Users },
+  { to: '/call-center', label: 'Call Center', icon: PhoneCall, staffLocked: true },
+  { to: '/leaderboard', label: 'Leaderboard', icon: Trophy, staffLocked: true },
+  { to: '/clients', label: 'Clients', icon: Building2, owner: true },
+  { to: '/agents', label: 'Staff', icon: Users, owner: true },
   { to: '/documents', label: 'Documents', icon: FolderOpen },
-  { to: '/payments', label: 'Payments', icon: Wallet },
+  { to: '/payments', label: 'Payments', icon: Wallet, owner: true },
   { to: '/connect', label: 'Settings', icon: Plug },
 ]
 
-function useTheme() {
-  const [dark, setDark] = useState(false)
-
-  useEffect(() => {
-    setDark(document.documentElement.classList.contains('dark'))
-  }, [])
-
-  const toggle = () => {
-    const next = !dark
-    setDark(next)
-    document.documentElement.classList.toggle('dark', next)
-    try {
-      localStorage.setItem('theme', next ? 'dark' : 'light')
-    } catch {
-      /* storage blocked — theme just won't persist */
-    }
-  }
-
-  return { dark, toggle }
-}
+const OWNER_ROLES = new Set(['admin', 'member'])
 
 function Sidebar({ mobileOpen }: { mobileOpen: boolean }) {
   const [collapsed, setCollapsed] = useState(false)
   const [hydrated, setHydrated] = useState(false)
   const [label, setLabel] = useState('Signed in')
-  const { dark, toggle } = useTheme()
+
   const live = useIsLive()
   const navigate = useNavigate()
 
@@ -108,12 +103,40 @@ function Sidebar({ mobileOpen }: { mobileOpen: boolean }) {
   })
 
   const who = me.data?.user?.email ?? 'demo'
-  const { prefs } = usePrefs(who)
+  const { prefs, update } = usePrefs(who)
+
+  // Theme lives in prefs and nowhere else. This button used to own its
+  // own state and write localStorage directly, which meant toggling here
+  // never updated the Settings selector — and the next prefs sync would
+  // apply the stale saved value and undo the toggle. One source of
+  // truth, both surfaces read and write it.
+  //
+  // Resolved after mount only: the server has no matchMedia, and reading
+  // it during render would disagree with the server markup.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  const dark = mounted ? isDarkTheme(prefs.theme) : false
+  // Toggling from 'system' commits to an explicit choice, which is what
+  // clicking a light/dark button means.
+  const toggle = () => update({ theme: dark ? 'light' : 'dark' })
+
+  // Role decides which tabs exist at all; the per-user preference only
+  // hides tabs the person was entitled to in the first place.
+  //
+  // While the role is still loading we show the staff set, not the full
+  // one. Defaulting the other way would flash Payments and Clients at a
+  // rep on every page load before snapping them away.
+  const role = me.data?.user?.role
+  const showOwnerTabs = live ? OWNER_ROLES.has(role ?? '') : true
 
   // Settings must never hide itself, or there is no way back to unhide
   // anything — the only fix would be clearing site data.
-  const visibleNav = NAV.filter(
-    (item) => item.to === '/connect' || !prefs.hiddenTabs.includes(item.to),
+  const visibleNav = applyTabOrder(
+    NAV.filter((item) => {
+      if (item.owner && !showOwnerTabs) return false
+      return item.to === '/connect' || !prefs.hiddenTabs.includes(item.to)
+    }),
+    prefs.tabOrder,
   )
 
   const handleSignOut = () => {
@@ -201,6 +224,40 @@ function Sidebar({ mobileOpen }: { mobileOpen: boolean }) {
           const Icon = item.icon
           const active =
             item.to === '/' ? pathname === '/' : pathname.startsWith(item.to)
+
+          // Locked tabs render as plain text, not a disabled link. A
+          // disabled <a> is still focusable and still navigable by
+          // keyboard in some browsers, which would defeat the point.
+          if (item.staffLocked && !showOwnerTabs) {
+            return (
+              <div
+                key={item.to}
+                aria-disabled="true"
+                title={`${item.label} — coming soon`}
+                className={cn(
+                  collapsed
+                    ? 'grid h-10 w-full cursor-not-allowed place-items-center rounded-xl text-sm font-medium'
+                    : 'flex cursor-not-allowed items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium',
+                  'text-foreground/30',
+                )}
+              >
+                {collapsed ? (
+                  <Icon className="h-4 w-4" strokeWidth={2} />
+                ) : (
+                  <>
+                    <span className="flex items-center gap-3">
+                      <Icon className="h-4 w-4" strokeWidth={2} />
+                      {item.label}
+                    </span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground/25">
+                      Soon
+                    </span>
+                  </>
+                )}
+              </div>
+            )
+          }
+
           return (
             <Link
               key={item.to}

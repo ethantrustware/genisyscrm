@@ -22,12 +22,20 @@ export type Density = 'comfortable' | 'compact'
 
 export type Prefs = {
   hiddenTabs: string[]
+  /**
+   * Sidebar order, as tab paths. Partial by design: anything missing
+   * keeps its natural position after the listed items, so a newly added
+   * tab still appears for someone who reordered months ago instead of
+   * silently vanishing.
+   */
+  tabOrder: string[]
   density: Density
   theme: Theme
 }
 
 export const DEFAULT_PREFS: Prefs = {
   hiddenTabs: [],
+  tabOrder: [],
   density: 'comfortable',
   theme: 'system',
 }
@@ -41,6 +49,7 @@ export function readPrefs(who: string): Prefs {
     const parsed = JSON.parse(raw) as Partial<Prefs>
     return {
       hiddenTabs: Array.isArray(parsed.hiddenTabs) ? parsed.hiddenTabs : [],
+      tabOrder: Array.isArray(parsed.tabOrder) ? parsed.tabOrder : [],
       density: parsed.density === 'compact' ? 'compact' : 'comfortable',
       theme:
         parsed.theme === 'light' || parsed.theme === 'dark'
@@ -75,6 +84,14 @@ export function writePrefs(who: string, prefs: Prefs) {
   }
 }
 
+/** Does this theme resolve to dark right now? SSR-safe. */
+export function isDarkTheme(theme: Theme): boolean {
+  if (theme === 'dark') return true
+  if (theme === 'light') return false
+  if (typeof window === 'undefined') return false
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
+}
+
 /** Resolve `system` against the OS setting and apply it to <html>. */
 export function applyTheme(theme: Theme) {
   if (typeof document === 'undefined') return
@@ -90,6 +107,34 @@ export function applyTheme(theme: Theme) {
   } catch {
     /* ignore */
   }
+}
+
+/**
+ * Apply a saved order to a nav list.
+ *
+ * Items named in `order` come first in that order; everything else keeps
+ * its original relative position afterwards. That way the list survives
+ * tabs being added or removed without the preference needing migration.
+ */
+export function applyTabOrder<T extends { to: string }>(
+  items: T[],
+  order: string[],
+): T[] {
+  if (order.length === 0) return items
+  const rank = new Map(order.map((to, i) => [to, i]))
+  return items
+    .map((item, i) => ({ item, i }))
+    .sort((a, b) => {
+      const ra = rank.get(a.item.to)
+      const rb = rank.get(b.item.to)
+      if (ra !== undefined && rb !== undefined) return ra - rb
+      // Unranked items stay put relative to each other, and sort after
+      // ranked ones.
+      if (ra !== undefined) return -1
+      if (rb !== undefined) return 1
+      return a.i - b.i
+    })
+    .map((x) => x.item)
 }
 
 /** Density is a data attribute; styles.css does the rest. */

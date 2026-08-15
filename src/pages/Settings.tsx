@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   CheckCircle2,
+  ArrowDown,
+  ArrowUp,
   Eye,
   EyeOff,
   Loader2,
@@ -31,7 +33,7 @@ import {
   inputCls,
 } from '@/components/ui'
 import { cn } from '@/lib/utils'
-import { usePrefs } from '@/lib/prefs'
+import { applyTabOrder, usePrefs } from '@/lib/prefs'
 
 /**
  * Connect screen — swaps the app from demo data to the live Hub.
@@ -49,15 +51,20 @@ import { usePrefs } from '@/lib/prefs'
 const HIDEABLE_TABS = [
   { to: '/', label: 'Dashboard' },
   { to: '/today', label: 'Today' },
-  { to: '/inbox', label: 'Inbox' },
+  { to: '/inbox', label: 'Inbox', owner: true },
   { to: '/calendar', label: 'Calendar' },
   { to: '/crm', label: 'CRM' },
   { to: '/opportunities', label: 'Opportunities' },
-  { to: '/clients', label: 'Clients' },
-  { to: '/agents', label: 'Staff' },
+  { to: '/clock', label: 'Timeclock' },
+  { to: '/call-center', label: 'Call Center' },
+  { to: '/leaderboard', label: 'Leaderboard' },
+  { to: '/clients', label: 'Clients', owner: true },
+  { to: '/agents', label: 'Staff', owner: true },
   { to: '/documents', label: 'Documents' },
-  { to: '/payments', label: 'Payments' },
+  { to: '/payments', label: 'Payments', owner: true },
 ]
+
+const OWNER_ROLES = new Set(['admin', 'member'])
 
 export default function Settings() {
   const queryClient = useQueryClient()
@@ -70,6 +77,32 @@ export default function Settings() {
   })
   const who = me.data?.user?.email ?? 'demo'
   const { prefs, update } = usePrefs(who)
+
+  // Only list tabs this person actually has. Showing a rep a row for
+  // "Payments" would advertise a section they can't reach and can't do
+  // anything about.
+  const showOwnerTabs = live
+    ? OWNER_ROLES.has(me.data?.user?.role ?? '')
+    : true
+  const orderedTabs = applyTabOrder(
+    HIDEABLE_TABS.filter((t) => !t.owner || showOwnerTabs),
+    prefs.tabOrder,
+  )
+
+  /**
+   * Move a tab one place up or down.
+   *
+   * Writes the complete resulting order rather than a partial one, so
+   * the saved preference always matches exactly what is on screen —
+   * a partial order would re-sort unpredictably on the next render.
+   */
+  const moveTab = (index: number, direction: -1 | 1) => {
+    const next = [...orderedTabs]
+    const target = index + direction
+    if (target < 0 || target >= next.length) return
+    ;[next[index], next[target]] = [next[target], next[index]]
+    update({ tabOrder: next.map((t) => t.to) })
+  }
 
   // Server-rendered: read storage after mount, never during render.
   const [existing, setExisting] = useState<ReturnType<
@@ -280,29 +313,51 @@ export default function Settings() {
 
       {/* ---- Tabs ---- */}
       <Card>
-        <SectionLabel>Tabs</SectionLabel>
+        <SectionLabel>Sidebar</SectionLabel>
         <p className="mb-3 text-xs text-muted-foreground">
-          Hide sections you are not using. This is cosmetic and applies to your
-          account on this browser only — it tidies the sidebar, it does not
-          restrict access.
+          Reorder sections with the arrows, or hide the ones you are not
+          using. This applies to your account on this browser only — it
+          tidies the sidebar, it does not change what you can access.
         </p>
 
         <ul className="flex flex-col">
-          {HIDEABLE_TABS.map((t) => {
+          {orderedTabs.map((t, i) => {
             const hidden = prefs.hiddenTabs.includes(t.to)
             return (
               <li
                 key={t.to}
-                className="flex items-center justify-between gap-3 border-b border-border-soft py-2.5 last:border-0"
+                className="flex items-center gap-2 border-b border-border-soft py-2 last:border-0"
               >
+                <div className="flex flex-col">
+                  <button
+                    type="button"
+                    aria-label={`Move ${t.label} up`}
+                    disabled={i === 0}
+                    onClick={() => moveTab(i, -1)}
+                    className="rounded p-0.5 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-25"
+                  >
+                    <ArrowUp className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Move ${t.label} down`}
+                    disabled={i === orderedTabs.length - 1}
+                    onClick={() => moveTab(i, 1)}
+                    className="rounded p-0.5 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-25"
+                  >
+                    <ArrowDown className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
                 <span
                   className={cn(
-                    'text-sm',
+                    'flex-1 text-sm',
                     hidden && 'text-muted-foreground line-through',
                   )}
                 >
                   {t.label}
                 </span>
+
                 <button
                   type="button"
                   onClick={() =>
@@ -331,13 +386,13 @@ export default function Settings() {
           })}
         </ul>
 
-        {prefs.hiddenTabs.length > 0 && (
+        {(prefs.hiddenTabs.length > 0 || prefs.tabOrder.length > 0) && (
           <button
             type="button"
-            onClick={() => update({ hiddenTabs: [] })}
+            onClick={() => update({ hiddenTabs: [], tabOrder: [] })}
             className="mt-3 text-xs font-medium text-primary hover:underline"
           >
-            Show all tabs
+            Reset sidebar
           </button>
         )}
       </Card>
