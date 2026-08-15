@@ -360,6 +360,13 @@ export default function StaffBookings() {
           <div>
             <h2 className="mb-3 text-sm font-semibold">
               Bookings ({data.bookings.length})
+              {data.bookings.some((b) => !b.inWindow) && (
+                <span className="ml-2 font-normal text-muted-foreground">
+                  including{' '}
+                  {data.bookings.filter((b) => !b.inWindow).length} dated
+                  outside {days}d
+                </span>
+              )}
             </h2>
             {data.bookings.length === 0 ? (
               <EmptyCard icon={CalendarCheck}>
@@ -405,15 +412,26 @@ export default function StaffBookings() {
                       .map((b) => (
                         <tr
                           key={`${b.vaultName}-${b.id}`}
-                          className="border-b border-border-soft transition last:border-0 hover:bg-surface-muted"
+                          className={cn(
+                            'border-b border-border-soft transition last:border-0 hover:bg-surface-muted',
+                            !b.inWindow && 'opacity-60',
+                          )}
                         >
-                          <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
+                          <td
+                            className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground"
+                            title={`created ${b.createdAt ?? 'unknown'} · updated ${b.updatedAt ?? 'not returned by GHL'}`}
+                          >
                             {b.bookedAt ? (
                               <>
                                 {dayFmt.format(new Date(b.bookedAt))}
                                 <span className="ml-1 opacity-60">
                                   {timeFmt.format(new Date(b.bookedAt))}
                                 </span>
+                                {!b.inWindow && (
+                                  <span className="ml-1.5 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-600 dark:text-amber-400">
+                                    older
+                                  </span>
+                                )}
                               </>
                             ) : (
                               '—'

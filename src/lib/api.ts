@@ -1702,6 +1702,9 @@ export type Booking = {
   status: string
   bookedAt: string | null
   createdAt: string | null
+  updatedAt: string | null
+  /** False when the row falls outside the selected window. */
+  inWindow: boolean
   contactId: string | null
   contactName: string | null
   contactPhone: string | null
