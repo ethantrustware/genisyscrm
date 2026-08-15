@@ -1710,6 +1710,9 @@ export type StaffBookingsRep = {
   otherPipelines?: string[]
   allStages?: string[]
   total?: number
+  /** Ignores the date window — exposes date-filter problems. */
+  totalAllTime?: number
+  undated?: number
   error?: string
   bookings: Omit<Booking, 'rep' | 'vaultName'>[]
 }
@@ -1747,7 +1750,12 @@ export async function findBooking(
 export type StaffBookings = {
   window: { since: string; days: number }
   stageFilter: string
-  totals: { bookings: number; reps: number; repsWithErrors: number }
+  totals: {
+    bookings: number
+    bookingsAllTime: number
+    reps: number
+    repsWithErrors: number
+  }
   subAccountErrors: Array<{ vaultName: string; error: string }>
   reps: StaffBookingsRep[]
   bookings: Booking[]
@@ -1768,7 +1776,7 @@ export async function fetchStaffBookings(
     return {
       window: { since: new Date().toISOString(), days },
       stageFilter: 'demo',
-      totals: { bookings: 0, reps: 0, repsWithErrors: 0 },
+      totals: { bookings: 0, bookingsAllTime: 0, reps: 0, repsWithErrors: 0 },
       subAccountErrors: [],
       reps: [],
       bookings: [],

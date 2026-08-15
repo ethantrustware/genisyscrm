@@ -180,6 +180,11 @@ export default function StaffBookings() {
             <SummaryCard
               label={`Booked in ${days} days`}
               value={data.totals.bookings}
+              sub={
+                data.totals.bookingsAllTime > data.totals.bookings
+                  ? `${data.totals.bookingsAllTime} in booked stages overall`
+                  : undefined
+              }
             />
             <SummaryCard label="Reps reporting" value={activeReps} />
             <SummaryCard
@@ -305,7 +310,21 @@ export default function StaffBookings() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-right font-semibold tabular-nums">
-                        {r.error ? '—' : (r.total ?? 0)}
+                        {r.error ? (
+                          '—'
+                        ) : (
+                          <>
+                            {r.total ?? 0}
+                            {(r.totalAllTime ?? 0) > (r.total ?? 0) && (
+                              <span
+                                className="ml-1 text-xs font-normal text-amber-600 dark:text-amber-400"
+                                title="In the booked stage, but dated outside the window. GHL's updatedAt may be missing, so an old lead booked recently looks old."
+                              >
+                                / {r.totalAllTime} all time
+                              </span>
+                            )}
+                          </>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -320,9 +339,19 @@ export default function StaffBookings() {
             </h2>
             {data.bookings.length === 0 ? (
               <EmptyCard icon={CalendarCheck}>
-                No bookings in this window. If that looks wrong, check the
-                booked-stage names above — the pipeline stage is what this
-                counts.
+                No bookings in this window.
+                {data.totals.bookingsAllTime > 0 ? (
+                  <>
+                    {' '}
+                    But {data.totals.bookingsAllTime} opportunities ARE sitting
+                    in booked stages — they just date outside it. Widen to 30d,
+                    or use the search above: GHL not returning{' '}
+                    <code>updatedAt</code> makes a recent booking on an older
+                    lead look old.
+                  </>
+                ) : (
+                  ' Nothing is sitting in a booked stage at all, so the GHL automation may not be creating opportunities.'
+                )}
               </EmptyCard>
             ) : (
               <div className="overflow-x-auto rounded-2xl border border-border bg-card">
