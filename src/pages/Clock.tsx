@@ -30,7 +30,7 @@ import {
 import { cn } from '@/lib/utils'
 
 /**
- * Clock — staff punch in/out, plus the admin view of everyone's week.
+ * Timeclock — staff punch in/out, plus the admin view of everyone's week.
  *
  * All week math happens here, in the browser, and the resolved window is
  * sent to the Hub as explicit timestamps. The team spans timezones, so
@@ -215,9 +215,9 @@ export default function Clock() {
     return (
       <div className="flex flex-col gap-6">
         <PageHeader
-          title="Clock"
+          title="Timeclock"
           subtitle="Clock in and out of your shift."
-          breadcrumbs={[{ label: 'Genisys' }, { label: 'Clock' }]}
+          breadcrumbs={[{ label: 'Genisys' }, { label: 'Timeclock' }]}
         />
         <EmptyCard icon={ClockIcon}>
           Sign in to clock in — the demo has no account behind it.
@@ -267,9 +267,9 @@ export default function Clock() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Clock"
+        title="Timeclock"
         subtitle="Clock in and out of your shift. Hours roll up by week."
-        breadcrumbs={[{ label: 'Genisys' }, { label: 'Clock' }]}
+        breadcrumbs={[{ label: 'Genisys' }, { label: 'Timeclock' }]}
       />
 
       <PunchCard

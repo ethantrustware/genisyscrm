@@ -58,7 +58,7 @@ const NAV = [
   { to: '/opportunities', label: 'Opportunities', icon: KanbanSquare },
   // Clock sits directly above Call Center: both are the day-to-day
   // staff surfaces, and Ethan asked for them as a pair.
-  { to: '/clock', label: 'Clock', icon: Clock },
+  { to: '/clock', label: 'Timeclock', icon: Clock },
   { to: '/call-center', label: 'Call Center', icon: PhoneCall },
   { to: '/clients', label: 'Clients', icon: Building2 },
   { to: '/agents', label: 'Staff', icon: Users },
