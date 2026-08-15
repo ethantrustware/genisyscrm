@@ -1699,6 +1699,9 @@ export type Booking = {
   /** From the GHL appointment, set by a human after the call. */
   attendance: Attendance
   appointmentAt: string | null
+  /** Null when no calendar appointment matched — attendance is then read-only. */
+  appointmentId: string | null
+  subAccount: string
   status: string
   bookedAt: string | null
   createdAt: string | null
@@ -1753,6 +1756,20 @@ export type StaffBookings = {
  * throttle it into a partial answer that would read as "this rep booked
  * nothing".
  */
+/**
+ * Mark a booking showed / no-show / not marked.
+ *
+ * Writes straight to the GHL appointment, which is the same field GHL's
+ * own UI uses — there is no second copy to drift.
+ */
+export async function setAttendance(input: {
+  subAccount: string
+  appointmentId: string
+  status: 'showed' | 'noshow' | 'unmarked'
+}): Promise<void> {
+  await write('/staff-bookings/attendance', 'PATCH', input)
+}
+
 export async function fetchStaffBookings(
   days = 14,
   stage?: string,

@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, CalendarCheck, RefreshCw } from 'lucide-react'
 import {
   fetchStaffBookings,
+  setAttendance,
   useIsLive,
   type Attendance,
 } from '@/lib/api'
@@ -72,6 +73,94 @@ const ATTENDANCE: Record<
   unmarked: { label: 'Not marked', tone: 'amber' },
 }
 
+/**
+ * Editable attendance cell.
+ *
+ * Writes to the GHL appointment, which is the same field GHL's own UI
+ * sets — marking here and marking there are the same act, so the two can
+ * never disagree.
+ *
+ * Only the three outcomes a person actually decides are offered.
+ * "Cancelled" and "Upcoming" are states of the appointment itself rather
+ * than judgements about it, so they show as text and aren't in the menu.
+ */
+function AttendanceCell({
+  bookingKey,
+  attendance,
+  appointmentId,
+  subAccount,
+  onSaved,
+}: {
+  bookingKey: string
+  attendance: Attendance
+  appointmentId: string | null
+  subAccount: string
+  onSaved: () => void
+}) {
+  const [error, setError] = useState<string | null>(null)
+  // Held locally so the cell reflects the choice immediately; the refetch
+  // behind it is what confirms GHL agreed.
+  const [optimistic, setOptimistic] = useState<Attendance | null>(null)
+
+  const save = useMutation({
+    mutationFn: (status: 'showed' | 'noshow' | 'unmarked') =>
+      setAttendance({ subAccount, appointmentId: appointmentId!, status }),
+    onMutate: (status) => {
+      setError(null)
+      setOptimistic(status as Attendance)
+    },
+    onError: (e: Error) => {
+      setOptimistic(null) // snap back rather than show a lie
+      setError(e.message)
+    },
+    onSuccess: onSaved,
+  })
+
+  const shown = optimistic ?? attendance
+
+  if (!appointmentId) {
+    return (
+      <span
+        className="text-xs text-muted-foreground"
+        title="No calendar appointment is linked to this contact, so there is nothing to mark."
+      >
+        {ATTENDANCE[attendance].label}
+      </span>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <select
+        aria-label={`Attendance for ${bookingKey}`}
+        value={
+          shown === 'showed' || shown === 'noshow' ? shown : 'unmarked'
+        }
+        disabled={save.isPending}
+        onChange={(e) =>
+          save.mutate(e.target.value as 'showed' | 'noshow' | 'unmarked')
+        }
+        className={cn(
+          'rounded-full border px-2.5 py-1 text-xs font-medium outline-none transition',
+          'focus:border-primary disabled:opacity-60',
+          shown === 'showed' &&
+            'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+          shown === 'noshow' &&
+            'border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300',
+          shown !== 'showed' &&
+            shown !== 'noshow' &&
+            'border-border bg-card text-muted-foreground',
+        )}
+      >
+        <option value="unmarked">Not marked</option>
+        <option value="showed">Showed</option>
+        <option value="noshow">No show</option>
+      </select>
+      {error && <span className="text-[11px] text-destructive">{error}</span>}
+    </div>
+  )
+}
+
 /** Local YYYY-MM-DD, for grouping bookings into days the viewer recognises. */
 function dayKey(iso: string): string {
   const d = new Date(iso)
@@ -80,6 +169,7 @@ function dayKey(iso: string): string {
 
 export default function StaffBookings() {
   const live = useIsLive()
+  const qc = useQueryClient()
   const q = useQuery({
     queryKey: ['staff-bookings'],
     queryFn: () => fetchStaffBookings(LOOKBACK_DAYS),
@@ -327,9 +417,24 @@ export default function StaffBookings() {
                             <Chip tone="mint">{b.stage}</Chip>
                           </td>
                           <td className="px-4 py-3">
-                            <Chip tone={ATTENDANCE[b.attendance].tone}>
-                              {ATTENDANCE[b.attendance].label}
-                            </Chip>
+                            {b.attendance === 'cancelled' ||
+                            b.attendance === 'upcoming' ? (
+                              <Chip tone={ATTENDANCE[b.attendance].tone}>
+                                {ATTENDANCE[b.attendance].label}
+                              </Chip>
+                            ) : (
+                              <AttendanceCell
+                                bookingKey={b.name}
+                                attendance={b.attendance}
+                                appointmentId={b.appointmentId}
+                                subAccount={b.subAccount}
+                                onSaved={() =>
+                                  qc.invalidateQueries({
+                                    queryKey: ['staff-bookings'],
+                                  })
+                                }
+                              />
+                            )}
                             {b.appointmentAt && (
                               <span className="ml-2 text-xs text-muted-foreground">
                                 {dayFmt.format(new Date(b.appointmentAt))}
