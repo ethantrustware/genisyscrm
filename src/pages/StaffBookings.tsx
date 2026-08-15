@@ -118,14 +118,19 @@ function AttendanceCell({
 
   const shown = optimistic ?? attendance
 
+  // Read-only, and it says why. Silently rendering text where every other
+  // row has a dropdown reads as "editing is broken" rather than "this
+  // particular row has nothing to write to".
   if (!appointmentId) {
     return (
-      <span
-        className="text-xs text-muted-foreground"
-        title="No calendar appointment is linked to this contact, so there is nothing to mark."
-      >
-        {ATTENDANCE[attendance].label}
-      </span>
+      <div className="flex flex-col gap-0.5">
+        <Chip tone={ATTENDANCE[attendance].tone}>
+          {ATTENDANCE[attendance].label}
+        </Chip>
+        <span className="text-[11px] text-amber-600 dark:text-amber-400">
+          no appointment linked
+        </span>
+      </div>
     )
   }
 
@@ -344,6 +349,18 @@ export default function StaffBookings() {
               <span className="ml-2 font-normal text-muted-foreground">
                 newest first
               </span>
+              {(() => {
+                const unlinked = data.bookings.filter(
+                  (b) => !b.appointmentId,
+                ).length
+                if (unlinked === 0) return null
+                return (
+                  <span className="ml-2 font-normal text-amber-600 dark:text-amber-400">
+                    · {unlinked} without a linked appointment, so attendance
+                    can&apos;t be set on {unlinked === 1 ? 'it' : 'them'}
+                  </span>
+                )
+              })()}
             </h2>
             {data.bookings.length === 0 ? (
               <EmptyCard icon={CalendarCheck}>
