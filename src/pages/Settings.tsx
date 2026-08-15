@@ -56,7 +56,7 @@ const HIDEABLE_TABS = [
   { to: '/crm', label: 'CRM' },
   { to: '/opportunities', label: 'Opportunities' },
   { to: '/clock', label: 'Timeclock' },
-  { to: '/call-center', label: 'Call Center' },
+  { to: '/staff-bookings', label: 'Staff Bookings' },
   { to: '/scoreboard', label: 'Scoreboard' },
   { to: '/clients', label: 'Clients', owner: true },
   { to: '/agents', label: 'Staff', owner: true },

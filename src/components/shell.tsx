@@ -10,6 +10,7 @@ import {
 import {
   Building2,
   Clock,
+  CalendarCheck,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
@@ -23,7 +24,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   LogOut,
-  PhoneCall,
   Plug,
   Trophy,
   Sun,
@@ -59,7 +59,7 @@ import {
  * being offered a door that won't open.
  *
  * `staffLocked: true` shows the tab to staff but greyed out and
- * unclickable. Call Center and Scoreboard both need an admin view
+ * unclickable. Scoreboard still needs an admin view
  * distinct from the staff one, and that split isn't designed yet —
  * showing them dimmed signals "coming" instead of pretending they don't
  * exist. Owners can open them and see the placeholder.
@@ -72,7 +72,7 @@ const NAV = [
   { to: '/crm', label: 'CRM', icon: MessagesSquare },
   { to: '/opportunities', label: 'Opportunities', icon: KanbanSquare },
   { to: '/clock', label: 'Timeclock', icon: Clock },
-  { to: '/call-center', label: 'Call Center', icon: PhoneCall, staffLocked: true },
+  { to: '/staff-bookings', label: 'Staff Bookings', icon: CalendarCheck },
   { to: '/scoreboard', label: 'Scoreboard', icon: Trophy, staffLocked: true },
   { to: '/clients', label: 'Clients', icon: Building2, owner: true },
   { to: '/agents', label: 'Staff', icon: Users, owner: true },

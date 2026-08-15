@@ -1680,3 +1680,68 @@ export type AttributionReport = {
 export async function fetchAttribution(days = 30): Promise<AttributionReport> {
   return get<AttributionReport>(`/diagnostics/ghl-attribution?days=${days}`)
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Staff bookings                                                            */
+/* -------------------------------------------------------------------------- */
+
+export type Booking = {
+  id: string
+  name: string
+  stage: string
+  status: string
+  bookedAt: string | null
+  createdAt: string | null
+  contactId: string | null
+  contactName: string | null
+  contactPhone: string | null
+  contactEmail: string | null
+  rep: string
+  vaultName: string
+}
+
+export type StaffBookingsRep = {
+  vaultName: string
+  locationName: string
+  locationId: string
+  pipelineName?: string
+  bookedStages?: string[]
+  total?: number
+  error?: string
+  bookings: Omit<Booking, 'rep' | 'vaultName'>[]
+}
+
+export type StaffBookings = {
+  window: { since: string; days: number }
+  stageFilter: string
+  totals: { bookings: number; reps: number; repsWithErrors: number }
+  subAccountErrors: Array<{ vaultName: string; error: string }>
+  reps: StaffBookingsRep[]
+  bookings: Booking[]
+}
+
+/**
+ * Bookings across every sub-account, attributed to the rep who owns it.
+ *
+ * Slow by design — the Hub walks sub-accounts sequentially so GHL doesn't
+ * throttle it into a partial answer that would read as "this rep booked
+ * nothing".
+ */
+export async function fetchStaffBookings(
+  days = 14,
+  stage?: string,
+): Promise<StaffBookings> {
+  if (!isLive()) {
+    return {
+      window: { since: new Date().toISOString(), days },
+      stageFilter: 'demo',
+      totals: { bookings: 0, reps: 0, repsWithErrors: 0 },
+      subAccountErrors: [],
+      reps: [],
+      bookings: [],
+    }
+  }
+  const q = new URLSearchParams({ days: String(days) })
+  if (stage) q.set('stage', stage)
+  return get<StaffBookings>(`/staff-bookings?${q.toString()}`)
+}
