@@ -1691,6 +1691,8 @@ export type Attendance =
   | 'cancelled'
   | 'upcoming'
   | 'unmarked'
+  /** Junk, a test, or too old to count. Excluded from the Scoreboard. */
+  | 'stale'
 
 export type Booking = {
   id: string
@@ -1765,7 +1767,7 @@ export type StaffBookings = {
 export async function setAttendance(input: {
   opportunityId: string
   subAccount: string
-  status: 'showed' | 'noshow' | 'unmarked'
+  status: 'showed' | 'noshow' | 'unmarked' | 'stale'
   appointmentId?: string | null
 }): Promise<void> {
   await write('/staff-bookings/attendance', 'PATCH', input)
@@ -1811,11 +1813,14 @@ function demoStaffBookings(days: number): StaffBookings {
       id: `demo-b${i}`,
       name,
       stage: 'Booked Meeting',
-      attendance: (i % 4 === 0
-        ? 'showed'
-        : i % 5 === 0
-          ? 'noshow'
-          : 'unmarked') as Attendance,
+      // One stale row so the Scoreboard's exclusion is visible in preview.
+      attendance: (i === 3
+        ? 'stale'
+        : i % 4 === 0
+          ? 'showed'
+          : i % 5 === 0
+            ? 'noshow'
+            : 'unmarked') as Attendance,
       appointmentAt: null,
       appointmentId: null,
       subAccount: rep.vaultName,

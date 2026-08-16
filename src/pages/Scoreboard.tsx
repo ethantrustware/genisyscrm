@@ -193,7 +193,12 @@ export default function Scoreboard() {
   if (q.isError) return <ErrorCard message={(q.error as Error).message} />
 
   const data = q.data!
-  const standings = buildStandings(data.reps, data.bookings)
+  // Stale is a "this one doesn't count" flag, so the board never sees
+  // those rows — not in the standings, not in today's total, not in the
+  // feed. Filtering once here means no downstream calculation can
+  // accidentally include them.
+  const counted = data.bookings.filter((b) => b.attendance !== 'stale')
+  const standings = buildStandings(data.reps, counted)
 
   const teamToday = standings.reduce((n, s) => n + s.today, 0)
   const teamTarget = standings.length * DAILY_TARGET
@@ -201,7 +206,7 @@ export default function Scoreboard() {
     teamTarget > 0 ? Math.min(100, Math.round((teamToday / teamTarget) * 100)) : 0
   const remaining = Math.max(0, teamTarget - teamToday)
 
-  const recent = data.bookings
+  const recent = counted
     .filter((b) => b.bookedAt)
     .sort(
       (a, b) =>

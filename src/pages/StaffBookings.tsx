@@ -4,7 +4,6 @@ import { AlertTriangle, CalendarCheck, RefreshCw } from 'lucide-react'
 import {
   fetchStaffBookings,
   setAttendance,
-  useIsLive,
   type Attendance,
 } from '@/lib/api'
 import {
@@ -71,6 +70,7 @@ const ATTENDANCE: Record<
   cancelled: { label: 'Cancelled', tone: 'muted' },
   upcoming: { label: 'Upcoming', tone: 'blue' },
   unmarked: { label: 'Not marked', tone: 'amber' },
+  stale: { label: 'Stale', tone: 'muted' },
 }
 
 /**
@@ -105,7 +105,7 @@ function AttendanceCell({
   const [optimistic, setOptimistic] = useState<Attendance | null>(null)
 
   const save = useMutation({
-    mutationFn: (status: 'showed' | 'noshow' | 'unmarked') =>
+    mutationFn: (status: 'showed' | 'noshow' | 'unmarked' | 'stale') =>
       setAttendance({ opportunityId, subAccount, appointmentId, status }),
     onMutate: (status) => {
       setError(null)
@@ -125,11 +125,15 @@ function AttendanceCell({
       <select
         aria-label={`Attendance for ${bookingKey}`}
         value={
-          shown === 'showed' || shown === 'noshow' ? shown : 'unmarked'
+          shown === 'showed' || shown === 'noshow' || shown === 'stale'
+            ? shown
+            : 'unmarked'
         }
         disabled={save.isPending}
         onChange={(e) =>
-          save.mutate(e.target.value as 'showed' | 'noshow' | 'unmarked')
+          save.mutate(
+            e.target.value as 'showed' | 'noshow' | 'unmarked' | 'stale',
+          )
         }
         className={cn(
           'rounded-full border px-2.5 py-1 text-xs font-medium outline-none transition',
@@ -138,14 +142,18 @@ function AttendanceCell({
             'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
           shown === 'noshow' &&
             'border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300',
+          shown === 'stale' &&
+            'border-border bg-muted text-muted-foreground line-through',
           shown !== 'showed' &&
             shown !== 'noshow' &&
+            shown !== 'stale' &&
             'border-border bg-card text-muted-foreground',
         )}
       >
         <option value="unmarked">Not marked</option>
         <option value="showed">Showed</option>
         <option value="noshow">No show</option>
+        <option value="stale">Stale</option>
       </select>
       {error && <span className="text-[11px] text-destructive">{error}</span>}
     </div>
@@ -159,31 +167,13 @@ function dayKey(iso: string): string {
 }
 
 export default function StaffBookings() {
-  const live = useIsLive()
   const qc = useQueryClient()
   const q = useQuery({
     queryKey: ['staff-bookings'],
     queryFn: () => fetchStaffBookings(LOOKBACK_DAYS),
-    enabled: live,
     refetchOnWindowFocus: false,
     staleTime: 120_000,
   })
-
-  if (!live) {
-    return (
-      <div className="flex flex-col gap-6">
-        <PageHeader
-          title="Staff Bookings"
-          subtitle="Who booked what, attributed by sub-account."
-          breadcrumbs={[{ label: 'Genisys' }, { label: 'Staff Bookings' }]}
-        />
-        <EmptyCard icon={CalendarCheck}>
-          Sign in to see bookings — this reads live pipeline data from
-          GoHighLevel.
-        </EmptyCard>
-      </div>
-    )
-  }
 
   const data = q.data
   const todayKey = dayKey(new Date().toISOString())
@@ -455,6 +445,9 @@ export default function StaffBookings() {
             const unmarked = data.bookings.filter(
               (b) => b.attendance === 'unmarked',
             ).length
+            const stale = data.bookings.filter(
+              (b) => b.attendance === 'stale',
+            ).length
             const showed = done.filter((b) => b.attendance === 'showed').length
             return (
               <div className="flex flex-col gap-1.5 text-xs text-muted-foreground">
@@ -472,6 +465,12 @@ export default function StaffBookings() {
                     marked showed or no-show in GoHighLevel. Attendance is set
                     by hand after a call, so this column only becomes useful
                     once that is part of the routine — nothing here infers it.
+                  </p>
+                )}
+                {stale > 0 && (
+                  <p>
+                    {stale} marked stale — excluded from the Scoreboard, still
+                    listed here.
                   </p>
                 )}
                 <p>
