@@ -1771,21 +1771,97 @@ export async function setAttendance(input: {
   await write('/staff-bookings/attendance', 'PATCH', input)
 }
 
+/**
+ * Demo board.
+ *
+ * Exists so the Scoreboard's design can be reviewed without a live Hub —
+ * in Lovable's preview, or by anyone judging the layout. Dates are
+ * generated relative to now so the today / week / 30-day splits are
+ * always populated rather than drifting into an empty board.
+ */
+function demoStaffBookings(days: number): StaffBookings {
+  const REPS = [
+    { vaultName: 'demo-1', locationName: 'Sales 1' },
+    { vaultName: 'demo-2', locationName: 'Team 2' },
+    { vaultName: 'demo-3', locationName: 'Team 3' },
+    { vaultName: 'demo-4', locationName: 'Team 4' },
+    { vaultName: 'demo-5', locationName: 'Team 5' },
+  ]
+  const NAMES = [
+    'Utah Flatwork Concrete',
+    'Cedar Ridge Roofing',
+    'Bluepoint Plumbing',
+    'Ironwood Fencing',
+    'Halcyon HVAC',
+    'Northside Electric',
+    'Granite Bay Landscaping',
+    'Summit Gutters',
+    'Redline Paving',
+    'Harbor Window Co',
+    'Foxglove Painting',
+    'Copperfield Decks',
+  ]
+  // Hours back from now — a couple today, several this week, the rest older.
+  const AGES = [2, 5, 9, 26, 31, 50, 74, 99, 140, 200, 400, 620]
+  const OWNER = [3, 1, 3, 0, 3, 1, 4, 0, 1, 2, 3, 0]
+
+  const bookings = NAMES.map((name, i) => {
+    const rep = REPS[OWNER[i]]
+    return {
+      id: `demo-b${i}`,
+      name,
+      stage: 'Booked Meeting',
+      attendance: (i % 4 === 0
+        ? 'showed'
+        : i % 5 === 0
+          ? 'noshow'
+          : 'unmarked') as Attendance,
+      appointmentAt: null,
+      appointmentId: null,
+      subAccount: rep.vaultName,
+      status: 'open',
+      bookedAt: new Date(Date.now() - AGES[i] * 3600_000).toISOString(),
+      createdAt: null,
+      updatedAt: null,
+      inWindow: true,
+      contactId: null,
+      contactName: name,
+      contactPhone: '+1 555 0100',
+      contactEmail: null,
+      rep: rep.locationName,
+      vaultName: rep.vaultName,
+    }
+  })
+
+  return {
+    window: { since: new Date(Date.now() - days * 86400_000).toISOString(), days },
+    stageFilter: 'demo',
+    totals: {
+      bookings: bookings.length,
+      bookingsAllTime: bookings.length,
+      reps: REPS.length,
+      repsWithErrors: 0,
+    },
+    subAccountErrors: [],
+    reps: REPS.map((r) => ({
+      ...r,
+      locationId: r.vaultName,
+      pipelineName: 'Contractors (Cold Callers)',
+      bookedStages: ['Booked Meeting'],
+      total: bookings.filter((b) => b.vaultName === r.vaultName).length,
+      totalAllTime: bookings.filter((b) => b.vaultName === r.vaultName).length,
+      bookings: [],
+    })),
+    bookings,
+  }
+}
+
 export async function fetchStaffBookings(
   days = 14,
   stage?: string,
   fresh = false,
 ): Promise<StaffBookings> {
-  if (!isLive()) {
-    return {
-      window: { since: new Date().toISOString(), days },
-      stageFilter: 'demo',
-      totals: { bookings: 0, bookingsAllTime: 0, reps: 0, repsWithErrors: 0 },
-      subAccountErrors: [],
-      reps: [],
-      bookings: [],
-    }
-  }
+  if (!isLive()) return demoStaffBookings(days)
   const q = new URLSearchParams({ days: String(days) })
   if (stage) q.set('stage', stage)
   // The Hub caches this for a minute; the refresh button means "now".

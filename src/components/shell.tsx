@@ -59,12 +59,23 @@ import {
  * being offered a door that won't open.
  *
  * `staffLocked: true` shows the tab to staff but greyed out and
- * unclickable. Scoreboard still needs an admin view
+ * unclickable. Nothing uses it right now — Scoreboard is deliberately
+ * open to staff, since a morale board nobody on the floor can see
  * distinct from the staff one, and that split isn't designed yet —
  * showing them dimmed signals "coming" instead of pretending they don't
  * exist. Owners can open them and see the placeholder.
  */
-const NAV = [
+type NavItem = {
+  to: string
+  label: string
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  /** Hidden from staff entirely. */
+  owner?: boolean
+  /** Visible to staff but greyed and unclickable — for tabs not ready yet. */
+  staffLocked?: boolean
+}
+
+const NAV: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutGrid },
   { to: '/today', label: 'Today', icon: CheckCircle2 },
   { to: '/inbox', label: 'Inbox', icon: Inbox, owner: true },
@@ -73,7 +84,7 @@ const NAV = [
   { to: '/opportunities', label: 'Opportunities', icon: KanbanSquare },
   { to: '/clock', label: 'Timeclock', icon: Clock },
   { to: '/staff-bookings', label: 'Staff Bookings', icon: CalendarCheck },
-  { to: '/scoreboard', label: 'Scoreboard', icon: Trophy, staffLocked: true },
+  { to: '/scoreboard', label: 'Scoreboard', icon: Trophy },
   { to: '/clients', label: 'Clients', icon: Building2, owner: true },
   { to: '/agents', label: 'Staff', icon: Users, owner: true },
   { to: '/documents', label: 'Documents', icon: FolderOpen },
