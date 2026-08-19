@@ -38,6 +38,34 @@ const PRIORITY_TONE = { high: 'pink', medium: 'amber', low: 'blue' } as const
 
 
 /**
+ * Day label for a meeting.
+ *
+ * "Today" / "Tomorrow" / "Yesterday" where that applies, because those
+ * read faster than a date, and the weekday plus date otherwise. Without
+ * this the list showed bare times, so a meeting three days ago and one
+ * this afternoon looked identical — and an item marked "Over" sitting
+ * above "no appointments today" just read as a bug.
+ */
+function dayLabel(d: Date): string {
+  const startOfDay = (x: Date) => {
+    const c = new Date(x)
+    c.setHours(0, 0, 0, 0)
+    return c.getTime()
+  }
+  const diffDays = Math.round(
+    (startOfDay(d) - startOfDay(new Date())) / 86400_000,
+  )
+  if (diffDays === 0) return 'Today'
+  if (diffDays === 1) return 'Tomorrow'
+  if (diffDays === -1) return 'Yesterday'
+  return d.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+/**
  * Next up — the soonest booked meetings, with a join link when the
  * calendar event carries one. "Over" is shown rather than hiding the row,
  * because a meeting that just ended is still the thing you're looking for.
@@ -69,7 +97,19 @@ function NextUp({ meetings }: { meetings: Meeting[] }) {
                 live ? 'border-primary/50 shadow-soft' : 'border-border',
               )}
             >
-              <div className="w-[86px] flex-shrink-0">
+              <div className="w-[118px] flex-shrink-0">
+                {start && (
+                  <p
+                    className={cn(
+                      'text-[11px] font-semibold uppercase tracking-wide',
+                      dayLabel(start) === 'Today'
+                        ? 'text-primary'
+                        : 'text-muted-foreground',
+                    )}
+                  >
+                    {dayLabel(start)}
+                  </p>
+                )}
                 <p className="text-sm font-semibold tabular-nums">
                   {start
                     ? start.toLocaleTimeString('en-US', {
