@@ -1,7 +1,12 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { CreditCard, KeyRound, RefreshCw } from 'lucide-react'
-import { fetchWhopOrders, type WhopOrder } from '@/lib/api'
+import { CreditCard, KeyRound, RefreshCw, Stethoscope } from 'lucide-react'
+import {
+  fetchWhopOrders,
+  probeWhop,
+  type WhopOrder,
+  type WhopProbe,
+} from '@/lib/api'
 import {
   Chip,
   EmptyCard,
@@ -104,6 +109,131 @@ function OrderRow({ o }: { o: WhopOrder }) {
         {usd(o.usdTotal)}
       </td>
     </tr>
+  )
+}
+
+/**
+ * Diagnostic for a rejected Whop key.
+ *
+ * Whop answers a bad request with the same "not authorized" wording
+ * whether the key lacks scopes, the company can't be inferred, or a
+ * parameter is malformed. This runs the call several ways and reads the
+ * answer off which ones worked, rather than leaving Alex to guess.
+ *
+ * It lives behind a button because the endpoint needs a bearer token —
+ * pasting its URL into a browser only ever returns 401.
+ */
+function WhopDiagnostic() {
+  const [result, setResult] = useState<WhopProbe | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const run = async () => {
+    setBusy(true)
+    setErr(null)
+    try {
+      setResult(await probeWhop())
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Diagnostic failed.')
+    }
+    setBusy(false)
+  }
+
+  // Read the verdict off the pattern of successes.
+  const verdict = (() => {
+    if (!result) return null
+    const ok = result.attempts.filter((a) => a.ok)
+    if (ok.length === 0) {
+      return {
+        tone: 'bad' as const,
+        text: 'Whop refused every shape, so this is the key itself — not how we are calling it. Open the key in Whop and grant it Admin (or all read permissions). Also check it is a Company/Account key rather than an App key: an App key has no company of its own to read.',
+      }
+    }
+    if (ok.some((a) => a.label === 'bare (no filters)') && ok.length < result.attempts.length) {
+      return {
+        tone: 'warn' as const,
+        text: 'The plain call works and a filtered one does not, so the key is fine and our query parameters are wrong. Send this to Claude — it is a small fix.',
+      }
+    }
+    return {
+      tone: 'good' as const,
+      text: 'Whop accepted the call. If orders still are not showing, the account may simply have none in this window yet.',
+    }
+  })()
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Stethoscope className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold">Work out what Whop wants</h2>
+        </div>
+        <button
+          type="button"
+          onClick={run}
+          disabled={busy}
+          className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+        >
+          {busy ? 'Testing…' : 'Run diagnostic'}
+        </button>
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Sends the same request several ways and reports which Whop accepts.
+        Your API key is never shown or returned.
+      </p>
+
+      {err && <p className="mt-3 text-sm text-destructive">{err}</p>}
+
+      {result && (
+        <div className="mt-4 flex flex-col gap-3">
+          {verdict && (
+            <div
+              className={cn(
+                'rounded-xl border p-3 text-sm',
+                verdict.tone === 'good' &&
+                  'border-emerald-500/40 bg-emerald-500/5',
+                verdict.tone === 'warn' && 'border-amber-500/40 bg-amber-500/5',
+                verdict.tone === 'bad' && 'border-rose-500/40 bg-rose-500/5',
+              )}
+            >
+              {verdict.text}
+            </div>
+          )}
+
+          <p className="text-xs text-muted-foreground">
+            Company ID configured:{' '}
+            <span className="font-medium text-foreground">
+              {result.companyIdConfigured ? 'yes' : 'no'}
+            </span>
+          </p>
+
+          <div className="overflow-x-auto rounded-xl border border-border">
+            <table className="w-full min-w-[34rem] text-xs">
+              <thead className="bg-surface-muted text-left uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-semibold">Request</th>
+                  <th className="px-3 py-2 font-semibold">Status</th>
+                  <th className="px-3 py-2 font-semibold">Whop said</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.attempts.map((a) => (
+                  <tr key={a.label} className="border-t border-border-soft">
+                    <td className="px-3 py-2 font-medium">{a.label}</td>
+                    <td className="px-3 py-2">
+                      <Chip tone={a.ok ? 'mint' : 'pink'}>{a.status}</Chip>
+                    </td>
+                    <td className="max-w-md break-words px-3 py-2 font-mono text-[11px] text-muted-foreground">
+                      {a.ok ? 'OK' : a.body || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -214,7 +344,10 @@ export default function Payments() {
 
       {/* Connected but Whop refused — show its own words, they're actionable. */}
       {data?.configured && data.error && (
-        <ErrorCard message={`Whop: ${data.error}`} />
+        <>
+          <ErrorCard message={`Whop: ${data.error}`} />
+          <WhopDiagnostic />
+        </>
       )}
 
       {data?.configured && !data.error && data.summary && (

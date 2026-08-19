@@ -1931,3 +1931,25 @@ function demoWhopOrders(days: number): WhopOrders {
     orders,
   }
 }
+
+export type WhopProbe = {
+  companyIdConfigured: boolean
+  attempts: Array<{
+    label: string
+    url: string
+    status: number
+    ok: boolean
+    body: string
+  }>
+}
+
+/**
+ * Ask the Hub to try several Whop request shapes and report which work.
+ *
+ * Runs through the signed-in session, because the raw endpoint needs an
+ * Authorization header a browser address bar will never send.
+ */
+export async function probeWhop(): Promise<WhopProbe> {
+  const d = await get<{ probe: WhopProbe }>('/whop/orders?probe=1')
+  return d.probe
+}
