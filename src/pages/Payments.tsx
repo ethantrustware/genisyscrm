@@ -143,6 +143,22 @@ function WhopDiagnostic() {
   const verdict = (() => {
     if (!result) return null
     const ok = result.attempts.filter((a) => a.ok)
+    const identify = result.attempts.find((a) => a.label.startsWith('identify'))
+
+    // The key-identity call is the fork in the road: it separates a key
+    // that is wrong from a key that is merely missing payment scopes.
+    if (identify && !identify.ok) {
+      return {
+        tone: 'bad' as const,
+        text: 'Whop will not even identify this key, so it is the key itself rather than anything about payments. Two things to check: that it is a Company/Account API key and not an App key (an App key has no company of its own to read), and that it has been given Admin or full read permissions. Re-run this after changing it.',
+      }
+    }
+    if (identify?.ok && ok.length === 1) {
+      return {
+        tone: 'warn' as const,
+        text: 'The key is valid — Whop identified it — but every payments call was refused. That is a permissions problem specific to payments: the key needs the payment, plan, product and member read scopes. Granting Admin is the quickest way to confirm.',
+      }
+    }
     if (ok.length === 0) {
       return {
         tone: 'bad' as const,
