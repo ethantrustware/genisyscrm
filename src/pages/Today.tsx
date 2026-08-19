@@ -38,15 +38,15 @@ const PRIORITY_TONE = { high: 'pink', medium: 'amber', low: 'blue' } as const
 
 
 /**
- * Day label for a meeting.
+ * Day label for a meeting: always the weekday and date, with the
+ * relative word in front where there is one.
  *
- * "Today" / "Tomorrow" / "Yesterday" where that applies, because those
- * read faster than a date, and the weekday plus date otherwise. Without
- * this the list showed bare times, so a meeting three days ago and one
- * this afternoon looked identical — and an item marked "Over" sitting
- * above "no appointments today" just read as a bug.
+ * An earlier version showed only "Today" / "Tomorrow" for the near
+ * cases. That reads well but hides the actual date, and "Today" alone
+ * next to a row marked Over gives no clue whether it finished ten
+ * minutes or nine hours ago. Showing both costs one short line.
  */
-function dayLabel(d: Date): string {
+function dayLabel(d: Date): { relative: string | null; date: string } {
   const startOfDay = (x: Date) => {
     const c = new Date(x)
     c.setHours(0, 0, 0, 0)
@@ -55,15 +55,24 @@ function dayLabel(d: Date): string {
   const diffDays = Math.round(
     (startOfDay(d) - startOfDay(new Date())) / 86400_000,
   )
-  if (diffDays === 0) return 'Today'
-  if (diffDays === 1) return 'Tomorrow'
-  if (diffDays === -1) return 'Yesterday'
-  return d.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  })
+  const relative =
+    diffDays === 0
+      ? 'Today'
+      : diffDays === 1
+        ? 'Tomorrow'
+        : diffDays === -1
+          ? 'Yesterday'
+          : null
+  return {
+    relative,
+    date: d.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    }),
+  }
 }
+
 
 /**
  * Next up — the soonest booked meetings, with a join link when the
@@ -97,19 +106,29 @@ function NextUp({ meetings }: { meetings: Meeting[] }) {
                 live ? 'border-primary/50 shadow-soft' : 'border-border',
               )}
             >
-              <div className="w-[118px] flex-shrink-0">
-                {start && (
-                  <p
-                    className={cn(
-                      'text-[11px] font-semibold uppercase tracking-wide',
-                      dayLabel(start) === 'Today'
-                        ? 'text-primary'
-                        : 'text-muted-foreground',
-                    )}
-                  >
-                    {dayLabel(start)}
-                  </p>
-                )}
+              <div className="w-[152px] flex-shrink-0">
+                {start &&
+                  (() => {
+                    const { relative, date } = dayLabel(start)
+                    return (
+                      <p className="text-[11px] font-semibold leading-tight">
+                        {relative && (
+                          <span
+                            className={cn(
+                              'uppercase tracking-wide',
+                              relative === 'Today'
+                                ? 'text-primary'
+                                : 'text-muted-foreground',
+                            )}
+                          >
+                            {relative}
+                            {' · '}
+                          </span>
+                        )}
+                        <span className="text-muted-foreground">{date}</span>
+                      </p>
+                    )
+                  })()}
                 <p className="text-sm font-semibold tabular-nums">
                   {start
                     ? start.toLocaleTimeString('en-US', {
