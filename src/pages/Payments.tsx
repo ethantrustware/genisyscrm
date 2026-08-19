@@ -1,205 +1,304 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Receipt } from 'lucide-react'
-import { fetchPayments, useIsLive, type PaymentsData } from '@/lib/api'
+import { CreditCard, KeyRound, RefreshCw } from 'lucide-react'
+import { fetchWhopOrders, type WhopOrder } from '@/lib/api'
 import {
-  Card,
   Chip,
   EmptyCard,
   ErrorCard,
   Loading,
   PageHeader,
-  SectionLabel,
-  StatusChip,
   SummaryCard,
 } from '@/components/ui'
-import { cn, formatDate, money } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 
-/** NCT roofing-lead billing — our own ledger, not Stripe/Mercury directly. */
+/**
+ * Payments — confirmed Whop orders.
+ *
+ * Replaced the NCT roofing ledger, which described a line of business
+ * Genisys dropped. Clients now pay for the $297/mo package through Whop,
+ * so this is the record of who is actually paying.
+ *
+ * Read-only on purpose: refunds, voids and retries stay in Whop's own
+ * dashboard. A half-built billing UI is a good way to issue a refund
+ * nobody meant to.
+ *
+ * Money is shown in USD from Whop's `usd_total`, which is their own
+ * normalisation. Summing `total` across currencies would silently add
+ * euros to dollars.
+ */
+
+const WINDOWS = [30, 90, 365] as const
+
+const usd = (n: number | null | undefined) =>
+  n === null || n === undefined
+    ? '—'
+    : n.toLocaleString(undefined, {
+        style: 'currency',
+        currency: 'USD',
+        maximumFractionDigits: n % 1 === 0 ? 0 : 2,
+      })
+
+const dayFmt = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+})
+
+/** Whop's billing_reason, in words a person would use. */
+const REASON: Record<string, string> = {
+  subscription_create: 'New',
+  subscription_cycle: 'Renewal',
+  subscription_update: 'Plan change',
+  one_time: 'One-time',
+  manual: 'Manual',
+  subscription: 'Subscription',
+}
+
+const STATUS_TONE: Record<string, 'mint' | 'amber' | 'pink' | 'muted'> = {
+  paid: 'mint',
+  open: 'amber',
+  pending: 'amber',
+  draft: 'muted',
+  void: 'muted',
+  uncollectible: 'pink',
+  unresolved: 'pink',
+}
+
+function OrderRow({ o }: { o: WhopOrder }) {
+  const when = o.paidAt ?? o.createdAt
+  const refunded = (o.refunded ?? 0) > 0
+  return (
+    <tr className="border-b border-border-soft transition last:border-0 hover:bg-surface-muted">
+      <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
+        {when ? dayFmt.format(new Date(when)) : '—'}
+      </td>
+      <td className="px-4 py-3">
+        <div className="font-medium">
+          {o.customerName ?? o.customerUsername ?? 'Unknown'}
+        </div>
+        {o.customerEmail && (
+          <div className="text-xs text-muted-foreground">{o.customerEmail}</div>
+        )}
+      </td>
+      <td className="px-4 py-3 text-xs text-muted-foreground">
+        {o.productTitle ?? '—'}
+      </td>
+      <td className="px-4 py-3">
+        {o.billingReason && (
+          <Chip tone="blue">{REASON[o.billingReason] ?? o.billingReason}</Chip>
+        )}
+      </td>
+      <td className="px-4 py-3">
+        <Chip tone={STATUS_TONE[o.status] ?? 'muted'}>{o.status}</Chip>
+        {refunded && (
+          <span className="ml-1.5 text-[11px] text-rose-500">
+            &minus;{usd(o.refunded)}
+          </span>
+        )}
+      </td>
+      <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
+        {o.cardBrand ? `${o.cardBrand} ····${o.cardLast4 ?? ''}` : '—'}
+      </td>
+      <td className="px-4 py-3 text-right font-semibold tabular-nums">
+        {usd(o.usdTotal)}
+      </td>
+    </tr>
+  )
+}
+
 export default function Payments() {
-  const live = useIsLive()
-  const { data, isLoading, isError, error } = useQuery<PaymentsData>({
-    queryKey: ['payments'],
-    queryFn: fetchPayments,
+  const [days, setDays] = useState<number>(90)
+  const [status, setStatus] = useState<'paid' | 'all'>('paid')
+
+  const q = useQuery({
+    queryKey: ['whop-orders', days, status],
+    queryFn: () => fetchWhopOrders(days, status),
+    refetchOnWindowFocus: false,
+    staleTime: 120_000,
   })
 
-  if (isLoading) return <Loading />
-  if (isError)
-    return (
-      <ErrorCard
-        message={error instanceof Error ? error.message : 'Could not load.'}
-      />
-    )
-
-  const d = data!
+  const data = q.data
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <PageHeader
         title="Payments"
+        subtitle="Confirmed orders from Whop."
         breadcrumbs={[{ label: 'Genisys' }, { label: 'Payments' }]}
-        subtitle={
-          live ? 'NCT roofing-lead billing.' : 'Showing demo data.'
+        actions={
+          <div className="flex items-center gap-2">
+            <div className="inline-flex rounded-xl border border-border p-1">
+              {WINDOWS.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setDays(d)}
+                  className={cn(
+                    'rounded-lg px-2.5 py-1.5 text-sm font-medium transition',
+                    days === d
+                      ? 'bg-primary text-white'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {d === 365 ? '1y' : `${d}d`}
+                </button>
+              ))}
+            </div>
+            <div className="inline-flex rounded-xl border border-border p-1">
+              {(['paid', 'all'] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setStatus(s)}
+                  className={cn(
+                    'rounded-lg px-2.5 py-1.5 text-sm font-medium capitalize transition',
+                    status === s
+                      ? 'bg-primary text-white'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => q.refetch()}
+              disabled={q.isFetching}
+              aria-label="Refresh"
+              className="rounded-lg border border-border p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+            >
+              <RefreshCw
+                className={cn('h-4 w-4', q.isFetching && 'animate-spin')}
+              />
+            </button>
+          </div>
         }
       />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <SummaryCard
-          label="Billed this week"
-          value={money(d.week.chargedCents)}
-          sub={`${d.week.leadCount} leads`}
-        />
-        <SummaryCard label="NCT cost" value={money(d.week.costCents)} />
-        <SummaryCard label="Margin" value={money(d.week.marginCents)} />
-        <SummaryCard
-          label="Needs attention"
-          value={d.leads.filter((l) => l.chargeStatus !== 'charged').length}
-        />
-      </div>
+      {q.isLoading && <Loading />}
+      {q.isError && <ErrorCard message={(q.error as Error).message} />}
 
-      <div>
-        <h2 className="mb-3 text-sm font-semibold">Roofing clients</h2>
-        {d.clients.length === 0 ? (
-          <EmptyCard icon={Receipt}>No roofing clients configured.</EmptyCard>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            {d.clients.map((c) => {
-              const pct =
-                c.weeklyCapCents > 0
-                  ? Math.min(100, (c.weekSpentCents / c.weeklyCapCents) * 100)
-                  : 0
-              return (
-                <Card key={c.id}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate font-semibold">{c.clientName}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {c.contactName ?? ''}
-                      </p>
-                    </div>
-                    <Chip tone={c.active ? 'mint' : 'muted'}>
-                      {c.active ? 'Active' : 'Paused'}
-                    </Chip>
-                  </div>
-                  <p className="mt-2 text-sm">
-                    {money(c.pricePerLeadCents)} per lead
-                    <span className="text-muted-foreground">
-                      {' '}
-                      · costs {money(c.costPerLeadCents)}
-                    </span>
-                  </p>
-                  {!c.hasStripeId && (
-                    <p className="mt-2 inline-block rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                      No Stripe customer ID — leads held
-                    </p>
-                  )}
-                  <div className="mt-3">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">This week</span>
-                      <span className="font-medium tabular-nums">
-                        {money(c.weekSpentCents)}
-                        {c.weeklyCapCents > 0
-                          ? ` / ${money(c.weeklyCapCents)}`
-                          : ' (uncapped)'}
-                      </span>
-                    </div>
-                    {c.weeklyCapCents > 0 && (
-                      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
-                        <div
-                          className={cn(
-                            'h-full rounded-full',
-                            pct >= 100
-                              ? 'bg-rose-500'
-                              : pct >= 80
-                                ? 'bg-amber-500'
-                                : 'bg-emerald-500',
-                          )}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </Card>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      <div>
-        <h2 className="mb-3 text-sm font-semibold">Recent NCT leads</h2>
-        <div className="overflow-hidden rounded-2xl border border-border bg-card">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-border bg-surface-muted text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-2.5 font-semibold">Received</th>
-                  <th className="px-4 py-2.5 font-semibold">Lead</th>
-                  <th className="px-4 py-2.5 font-semibold">Client</th>
-                  <th className="px-4 py-2.5 font-semibold">Charged</th>
-                  <th className="px-4 py-2.5 font-semibold">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {d.leads.map((l) => (
-                  <tr
-                    key={l.id}
-                    className="border-b border-border-soft last:border-0 hover:bg-surface-muted"
-                  >
-                    <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
-                      {formatDate(l.receivedAt)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium">{l.name ?? '—'}</p>
-                      <p className="font-mono text-[11px] text-muted-foreground">
-                        {l.leadId}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {l.clientName ?? '—'}
-                    </td>
-                    <td className="px-4 py-3 tabular-nums">
-                      {l.chargeStatus === 'charged'
-                        ? money(l.amountCents)
-                        : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusChip status={l.chargeStatus} />
-                      {l.failureReason && (
-                        <p className="mt-0.5 max-w-[220px] text-[11px] text-muted-foreground">
-                          {l.failureReason}
-                        </p>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* Not connected — a normal first-run state, not a failure. */}
+      {data && !data.configured && (
+        <div className="rounded-2xl border border-dashed border-border bg-card p-8">
+          <div className="mx-auto flex max-w-md flex-col items-center gap-3 text-center">
+            <div className="flex size-11 items-center justify-center rounded-full bg-primary-soft">
+              <KeyRound className="size-5 text-primary" />
+            </div>
+            <h2 className="text-base font-semibold">
+              Whop isn&apos;t connected
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Add your Whop API key to the Hub&apos;s Vault and orders will
+              appear here. Nothing else needs configuring.
+            </p>
+            <ul className="mt-1 w-full space-y-1.5 rounded-xl border border-border bg-surface-muted p-3 text-left text-xs">
+              <li>
+                <span className="font-semibold">Vault entry name:</span>{' '}
+                <code>Whop API Key</code>
+              </li>
+              <li>
+                <span className="font-semibold">Optional:</span>{' '}
+                <code>Whop Company ID</code> — only needed if the key covers
+                more than one company.
+              </li>
+              <li className="text-muted-foreground">
+                The key needs read scopes for payments, members and products.
+              </li>
+            </ul>
           </div>
         </div>
-      </div>
+      )}
 
-      {d.sweeps.length > 0 && (
-        <Card>
-          <SectionLabel>Stripe to Mercury sweeps</SectionLabel>
-          <ul className="flex flex-col">
-            {d.sweeps.map((s) => (
-              <li
-                key={s.id}
-                className="flex items-center justify-between border-t border-border-soft py-2 text-sm first:border-t-0"
-              >
-                <span className="text-xs text-muted-foreground">
-                  {formatDate(s.createdAt)} · {s.method}
+      {/* Connected but Whop refused — show its own words, they're actionable. */}
+      {data?.configured && data.error && (
+        <ErrorCard message={`Whop: ${data.error}`} />
+      )}
+
+      {data?.configured && !data.error && data.summary && (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <SummaryCard
+              label="Last 30 days"
+              value={usd(data.summary.last30Usd)}
+              sub={`${data.summary.last30Count} order${
+                data.summary.last30Count === 1 ? '' : 's'
+              }`}
+            />
+            <SummaryCard
+              label={`Gross · ${days === 365 ? '1y' : `${days}d`}`}
+              value={usd(data.summary.grossUsd)}
+              sub={`${data.summary.paidCount} paid`}
+            />
+            <SummaryCard
+              label="Net after fees"
+              value={usd(data.summary.netUsd)}
+              sub={
+                data.summary.refundedUsd > 0
+                  ? `${usd(data.summary.refundedUsd)} refunded`
+                  : undefined
+              }
+            />
+            <SummaryCard
+              label="Paying customers"
+              value={data.summary.customers}
+              sub="distinct"
+            />
+          </div>
+
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold">
+                Orders ({data.orders.length})
+              </h2>
+              {data.truncated && (
+                <span className="text-xs text-amber-600 dark:text-amber-400">
+                  showing the most recent {data.orders.length} — narrow the
+                  window to see all
                 </span>
-                <span className="flex items-center gap-3">
-                  <span className="font-medium tabular-nums">
-                    {money(s.amountCents)}
-                  </span>
-                  <StatusChip status={s.status} />
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Card>
+              )}
+            </div>
+
+            {data.orders.length === 0 ? (
+              <EmptyCard icon={CreditCard}>
+                No {status === 'paid' ? 'confirmed' : ''} orders in this window.
+              </EmptyCard>
+            ) : (
+              <div className="overflow-hidden rounded-2xl border border-border bg-card">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[52rem] text-sm">
+                    <thead className="border-b border-border bg-surface-muted text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                      <tr>
+                        <th className="px-4 py-2 font-semibold">Date</th>
+                        <th className="px-4 py-2 font-semibold">Customer</th>
+                        <th className="px-4 py-2 font-semibold">Product</th>
+                        <th className="px-4 py-2 font-semibold">Type</th>
+                        <th className="px-4 py-2 font-semibold">Status</th>
+                        <th className="px-4 py-2 font-semibold">Card</th>
+                        <th className="px-4 py-2 text-right font-semibold">
+                          Amount
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.orders.map((o) => (
+                        <OrderRow key={o.id} o={o} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            <p className="mt-3 text-xs text-muted-foreground">
+              Amounts are USD, using Whop&apos;s own conversion so mixed
+              currencies add up correctly. Refunds, retries and voids are
+              handled in Whop — this view is read-only.
+            </p>
+          </div>
+        </>
       )}
     </div>
   )

@@ -378,44 +378,6 @@ export type InboxRow = {
   folder: string
 }
 
-export type PaymentsData = {
-  week: {
-    chargedCents: number
-    costCents: number
-    marginCents: number
-    leadCount: number
-  }
-  clients: Array<{
-    id: string
-    clientName: string
-    contactName: string | null
-    pricePerLeadCents: number
-    costPerLeadCents: number
-    weeklyCapCents: number
-    active: boolean
-    hasStripeId: boolean
-    weekSpentCents: number
-  }>
-  leads: Array<{
-    id: string
-    leadId: string
-    name: string | null
-    phone: string | null
-    address: string | null
-    clientName: string | null
-    amountCents: number
-    chargeStatus: string
-    failureReason: string | null
-    receivedAt: string
-  }>
-  sweeps: Array<{
-    id: string
-    amountCents: number
-    method: string
-    status: string
-    createdAt: string
-  }>
-}
 
 export async function fetchToday(): Promise<TodayData> {
   if (!isLive()) return MOCK_TODAY
@@ -432,10 +394,6 @@ export async function fetchDocuments(): Promise<DocRow[]> {
 export async function fetchInbox(): Promise<InboxRow[]> {
   if (!isLive()) return MOCK_INBOX
   return get<InboxRow[]>('/inbox')
-}
-export async function fetchPayments(): Promise<PaymentsData> {
-  if (!isLive()) return MOCK_PAYMENTS
-  return get<PaymentsData>('/payments')
 }
 
 /* ---- mocks ---- */
@@ -480,21 +438,6 @@ const MOCK_INBOX: InboxRow[] = [
   { id: 'e4', from: 'david@brightonsolar.example', fromName: 'David Mehta', subject: 'Weekly numbers', snippet: 'Can you send over the show-rate breakdown for last week?', date: '2026-07-23T16:10:00.000Z', isRead: true, isLead: false, category: 'client', folder: 'inbox' },
 ]
 
-const MOCK_PAYMENTS: PaymentsData = {
-  week: { chargedCents: 90_000, costCents: 66_000, marginCents: 24_000, leadCount: 6 },
-  clients: [
-    { id: 'n1', clientName: 'Forever Lit Solar LLC', contactName: 'Bethany Wiggins', pricePerLeadCents: 15_000, costPerLeadCents: 11_000, weeklyCapCents: 180_000, active: true, hasStripeId: true, weekSpentCents: 90_000 },
-  ],
-  leads: [
-    { id: 'p1', leadId: 'NCT-10482', name: 'Jane Doe', phone: '(...) ...-4567', address: '123 Main St, Dallas TX', clientName: 'Forever Lit Solar LLC', amountCents: 15_000, chargeStatus: 'charged', failureReason: null, receivedAt: '2026-07-24T15:02:00.000Z' },
-    { id: 'p2', leadId: 'NCT-10481', name: 'Robert Yi', phone: '(...) ...-4590', address: '88 Oak Ave, Plano TX', clientName: 'Forever Lit Solar LLC', amountCents: 15_000, chargeStatus: 'charged', failureReason: null, receivedAt: '2026-07-24T12:40:00.000Z' },
-    { id: 'p3', leadId: 'NCT-10480', name: 'Maria Santos', phone: '(...) ...-4612', address: '9 Pine Rd, Irving TX', clientName: 'Forever Lit Solar LLC', amountCents: 15_000, chargeStatus: 'failed', failureReason: 'Card declined - insufficient funds.', receivedAt: '2026-07-23T20:15:00.000Z' },
-  ],
-  sweeps: [
-    { id: 's1', amountCents: 74_500, method: 'standard', status: 'ok', createdAt: '2026-07-24T09:00:00.000Z' },
-    { id: 's2', amountCents: 60_000, method: 'standard', status: 'ok', createdAt: '2026-07-23T09:00:00.000Z' },
-  ],
-}
 
 /* -------------------------------------------------------------------------- */
 /*  Session                                                                   */
@@ -1872,4 +1815,119 @@ export async function fetchStaffBookings(
   // The Hub caches this for a minute; the refresh button means "now".
   if (fresh) q.set('fresh', '1')
   return get<StaffBookings>(`/staff-bookings?${q.toString()}`)
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Whop orders                                                               */
+/* -------------------------------------------------------------------------- */
+
+export type WhopOrder = {
+  id: string
+  status: string
+  substatus: string | null
+  createdAt: string | null
+  paidAt: string | null
+  total: number | null
+  usdTotal: number | null
+  afterFees: number | null
+  refunded: number | null
+  currency: string | null
+  billingReason: string | null
+  customerName: string | null
+  customerEmail: string | null
+  customerUsername: string | null
+  productTitle: string | null
+  planId: string | null
+  membershipStatus: string | null
+  cardBrand: string | null
+  cardLast4: string | null
+}
+
+export type WhopOrders = {
+  configured: boolean
+  hint?: string
+  error?: string
+  truncated?: boolean
+  window?: { days: number; since: string }
+  summary: {
+    count: number
+    paidCount: number
+    grossUsd: number
+    netUsd: number
+    refundedUsd: number
+    last30Usd: number
+    last30Count: number
+    customers: number
+  } | null
+  orders: WhopOrder[]
+}
+
+/**
+ * Confirmed Whop orders.
+ *
+ * `configured: false` is a normal state, not a failure — it means no API
+ * key is in the Vault yet, and the page shows setup steps for it.
+ */
+export async function fetchWhopOrders(
+  days = 90,
+  status: 'paid' | 'all' = 'paid',
+): Promise<WhopOrders> {
+  if (!isLive()) return demoWhopOrders(days)
+  const q = new URLSearchParams({ days: String(days), status })
+  return get<WhopOrders>(`/whop/orders?${q.toString()}`)
+}
+
+/** Demo orders so the table design is reviewable without a live key. */
+function demoWhopOrders(days: number): WhopOrders {
+  const PEOPLE: Array<[string, string]> = [
+    ['Marcus Hale', 'marcus@haleroofing.com'],
+    ['Dana Whitfield', 'dana@whitfieldhvac.com'],
+    ['Owen Brady', 'owen@bradyplumbing.co'],
+    ['Priya Raman', 'priya@ramanelectric.com'],
+    ['Cal Jensen', 'cal@jensenconcrete.com'],
+  ]
+  const orders: WhopOrder[] = Array.from({ length: 11 }, (_, i) => {
+    const [name, email] = PEOPLE[i % PEOPLE.length]
+    const at = new Date(Date.now() - (i * 6 + 1) * 86400_000).toISOString()
+    return {
+      id: `pay_demo${i}`,
+      status: 'paid',
+      substatus: null,
+      createdAt: at,
+      paidAt: at,
+      total: 297,
+      usdTotal: 297,
+      afterFees: 288.09,
+      refunded: 0,
+      currency: 'usd',
+      billingReason: i < PEOPLE.length ? 'subscription_create' : 'subscription_cycle',
+      customerName: name,
+      customerEmail: email,
+      customerUsername: email.split('@')[0],
+      productTitle: 'Genisys Contractor Package',
+      planId: 'plan_demo',
+      membershipStatus: 'active',
+      cardBrand: ['visa', 'mastercard', 'amex'][i % 3],
+      cardLast4: String(4242 - i),
+    }
+  })
+  const monthAgo = Date.now() - 30 * 86400_000
+  const last30 = orders.filter(
+    (o) => o.paidAt && new Date(o.paidAt).getTime() >= monthAgo,
+  )
+  return {
+    configured: true,
+    window: { days, since: new Date(Date.now() - days * 86400_000).toISOString() },
+    summary: {
+      count: orders.length,
+      paidCount: orders.length,
+      grossUsd: orders.reduce((n, o) => n + (o.usdTotal ?? 0), 0),
+      netUsd: orders.reduce((n, o) => n + (o.afterFees ?? 0), 0),
+      refundedUsd: 0,
+      last30Usd: last30.reduce((n, o) => n + (o.usdTotal ?? 0), 0),
+      last30Count: last30.length,
+      customers: PEOPLE.length,
+    },
+    orders,
+  }
 }
