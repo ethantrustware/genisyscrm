@@ -586,7 +586,7 @@ export default function Crm() {
   const total = groups.reduce((n, g) => n + g.conversations.length, 0)
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-4">
+    <div className="flex w-full flex-col gap-4">
       <PageHeader
         title="CRM"
         breadcrumbs={[{ label: 'Genisys' }, { label: 'CRM' }]}
@@ -646,8 +646,8 @@ export default function Crm() {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,380px)_1fr]">
-        <div className="max-h-[68vh] overflow-y-auto rounded-2xl border border-border bg-card">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,420px)_1fr]">
+        <div className="h-[calc(100vh-15rem)] min-h-[26rem] overflow-y-auto rounded-2xl border border-border bg-card">
           {convos.isLoading ? (
             <Loading />
           ) : convos.isError ? (
@@ -668,7 +668,7 @@ export default function Crm() {
           )}
         </div>
 
-        <div className="max-h-[68vh] overflow-hidden rounded-2xl border border-border bg-card">
+        <div className="h-[calc(100vh-15rem)] min-h-[26rem] overflow-hidden rounded-2xl border border-border bg-card">
           {selected ? (
             <Thread
               subAccount={selected.subAccount}
