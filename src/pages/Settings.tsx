@@ -168,6 +168,25 @@ export default function Settings() {
             ? `Reading from ${existing.base}`
             : 'All screens are rendering realistic mock data. Nothing is being read from the Hub.'}
         </p>
+
+        {/* A token with no account behind it silently loses every
+            owner-only tab — Vault, Payments, Clients, Staff, Inbox — and
+            the sidebar just quietly renders five fewer links. Say so,
+            because the symptom looks like the tabs were never built. */}
+        {existing && live && me.data && !me.data.user && (
+          <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3 text-xs">
+            <ShieldAlert className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-500" />
+            <span>
+              <span className="font-semibold">
+                Connected with an API token, not an account.
+              </span>{' '}
+              Admin sections (Vault, Payments, Clients, Staff, Inbox) are
+              hidden because there is no user behind this token, and the Hub
+              would refuse them anyway. Sign out and log in with your email
+              and password to see them.
+            </span>
+          </div>
+        )}
       </Card>
 
       <Card>
