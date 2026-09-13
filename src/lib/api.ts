@@ -2051,3 +2051,103 @@ function demoVault(): VaultEntry[] {
     },
   ]
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Slack                                                                     */
+/* -------------------------------------------------------------------------- */
+
+export type SlackIdentity = {
+  ok: boolean
+  team: string | null
+  teamId: string | null
+  botName: string | null
+  url: string | null
+  error: string | null
+}
+
+export type SlackChannel = {
+  id: string
+  name: string
+  topic: string
+  memberCount: number
+  isPrivate?: boolean
+  isMember?: boolean
+}
+
+export type SlackWorkspace = {
+  identity: SlackIdentity
+  channels: SlackChannel[]
+  channelsError: string | null
+}
+
+export type SlackMessage = {
+  ts: string
+  userId: string
+  userName: string
+  text: string
+  threadTs?: string
+  replyCount?: number
+  timestamp: string
+}
+
+export type SlackChannelView = {
+  error?: string
+  messages: SlackMessage[]
+  channelName: string
+  channelTopic: string
+  memberCount: number
+  userMap: Record<string, string>
+}
+
+export async function fetchSlackWorkspace(): Promise<SlackWorkspace> {
+  if (!isLive()) return demoSlack()
+  return get<SlackWorkspace>('/slack')
+}
+
+export async function fetchSlackChannel(
+  channelId: string,
+  limit = 50,
+): Promise<SlackChannelView> {
+  if (!isLive()) {
+    return {
+      messages: [],
+      channelName: 'demo',
+      channelTopic: '',
+      memberCount: 0,
+      userMap: {},
+    }
+  }
+  const q = new URLSearchParams({ channelId, limit: String(limit) })
+  return get<SlackChannelView>(`/slack/messages?${q.toString()}`)
+}
+
+export async function postSlackMessage(
+  channelId: string,
+  text: string,
+): Promise<void> {
+  await write('/slack/messages', 'POST', { channelId, text })
+}
+
+export async function joinSlackChannel(channelId: string): Promise<void> {
+  await write('/slack/join', 'POST', { channelId })
+}
+
+function demoSlack(): SlackWorkspace {
+  return {
+    identity: {
+      ok: true,
+      team: 'Lead Genisys',
+      teamId: 'T0DEMO',
+      botName: 'genisys-hub',
+      url: 'https://leadgenisys.slack.com/',
+      error: null,
+    },
+    channels: [
+      { id: 'C1', name: 'genisys-alerts', topic: 'Automated alerts', memberCount: 6, isMember: true },
+      { id: 'C2', name: 'general', topic: '', memberCount: 9, isMember: true },
+      { id: 'C3', name: 'client-spring', topic: 'Spring Solar', memberCount: 4, isPrivate: true, isMember: true },
+      { id: 'C4', name: 'random', topic: '', memberCount: 8, isMember: false },
+    ],
+    channelsError: null,
+  }
+}

@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   ChevronRight,
   FolderOpen,
+  Hash,
   Inbox,
   KanbanSquare,
   LayoutGrid,
@@ -90,6 +91,7 @@ const NAV: NavItem[] = [
   { to: '/agents', label: 'Staff', icon: Users, owner: true },
   { to: '/documents', label: 'Documents', icon: FolderOpen },
   { to: '/payments', label: 'Payments', icon: Wallet, owner: true },
+  { to: '/slack', label: 'Slack', icon: Hash, owner: true },
   { to: '/vault', label: 'Vault', icon: KeyRound, owner: true },
   { to: '/connect', label: 'Settings', icon: Plug },
 ]
