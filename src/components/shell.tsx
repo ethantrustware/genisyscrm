@@ -27,6 +27,7 @@ import {
   Plug,
   Trophy,
   Sun,
+  KeyRound,
   Users,
   Wallet,
 } from 'lucide-react'
@@ -89,6 +90,7 @@ const NAV: NavItem[] = [
   { to: '/agents', label: 'Staff', icon: Users, owner: true },
   { to: '/documents', label: 'Documents', icon: FolderOpen },
   { to: '/payments', label: 'Payments', icon: Wallet, owner: true },
+  { to: '/vault', label: 'Vault', icon: KeyRound, owner: true },
   { to: '/connect', label: 'Settings', icon: Plug },
 ]
 

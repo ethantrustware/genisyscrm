@@ -1953,3 +1953,101 @@ export async function probeWhop(): Promise<WhopProbe> {
   const d = await get<{ probe: WhopProbe }>('/whop/orders?probe=1')
   return d.probe
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Vault                                                                     */
+/* -------------------------------------------------------------------------- */
+
+export type VaultEntry = {
+  id: string
+  name: string
+  description: string | null
+  tags: string[]
+  lastUsedAt: string | null
+  createdAt: string
+  updatedAt: string
+  createdBy: string | null
+}
+
+/**
+ * Vault entries — metadata only.
+ *
+ * There is no reveal on this surface by design: secrets are decrypted
+ * only inside the Hub, where the master key lives. Use the Hub's own
+ * /vault page to look at a value.
+ */
+export async function fetchVault(): Promise<VaultEntry[]> {
+  if (!isLive()) return demoVault()
+  const d = await get<{ entries: VaultEntry[] }>('/vault')
+  return d.entries
+}
+
+export async function createVaultEntry(input: {
+  name: string
+  description?: string
+  tags?: string[]
+  value: string
+}): Promise<void> {
+  await write('/vault', 'POST', input)
+}
+
+export async function updateVaultEntry(input: {
+  id: string
+  name?: string
+  description?: string
+  tags?: string[]
+  /** Empty or omitted leaves the stored secret untouched. */
+  value?: string
+}): Promise<void> {
+  await write('/vault', 'PATCH', input)
+}
+
+export async function deleteVaultEntry(id: string): Promise<void> {
+  await write(`/vault?id=${encodeURIComponent(id)}`, 'DELETE')
+}
+
+function demoVault(): VaultEntry[] {
+  const ago = (d: number) => new Date(Date.now() - d * 86400_000).toISOString()
+  return [
+    {
+      id: 'v1',
+      name: 'Whop API Key',
+      description: 'Reads confirmed orders for the Payments tab.',
+      tags: ['whop', 'billing'],
+      lastUsedAt: ago(0),
+      createdAt: ago(26),
+      updatedAt: ago(26),
+      createdBy: 'Alex Hyatt',
+    },
+    {
+      id: 'v2',
+      name: 'GHL • Genisys',
+      description: 'Main sub-account private integration token.',
+      tags: ['ghl'],
+      lastUsedAt: ago(0),
+      createdAt: ago(120),
+      updatedAt: ago(31),
+      createdBy: 'Alex Hyatt',
+    },
+    {
+      id: 'v3',
+      name: 'GHL • Sales 1',
+      description: null,
+      tags: ['ghl'],
+      lastUsedAt: ago(1),
+      createdAt: ago(96),
+      updatedAt: ago(31),
+      createdBy: 'Alex Hyatt',
+    },
+    {
+      id: 'v4',
+      name: 'Slack Bot Token',
+      description: 'Alerts channel. Currently inactive.',
+      tags: ['slack'],
+      lastUsedAt: ago(44),
+      createdAt: ago(200),
+      updatedAt: ago(200),
+      createdBy: 'Alex Hyatt',
+    },
+  ]
+}

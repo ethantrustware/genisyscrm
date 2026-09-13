@@ -62,6 +62,7 @@ const HIDEABLE_TABS = [
   { to: '/agents', label: 'Staff', owner: true },
   { to: '/documents', label: 'Documents' },
   { to: '/payments', label: 'Payments', owner: true },
+  { to: '/vault', label: 'Vault', owner: true },
 ]
 
 const OWNER_ROLES = new Set(['admin', 'member'])
