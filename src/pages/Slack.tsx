@@ -10,17 +10,21 @@ import {
   RefreshCw,
   Search,
   Send,
+  UserPlus,
   X,
 } from 'lucide-react'
 import {
   createSlackChannel,
   fetchSlackChannel,
+  fetchSlackMembers,
   fetchSlackThread,
   fetchSlackWorkspace,
+  inviteToSlackChannel,
   joinSlackChannel,
   postSlackMessage,
   type SlackChannel,
   type SlackMessage,
+  type SlackUser,
 } from '@/lib/api'
 import { ErrorCard, Loading, PageHeader } from '@/components/ui'
 import { cn } from '@/lib/utils'
@@ -193,6 +197,174 @@ function CreateChannel({
 
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Members panel — who is in the channel, and who can be added.
+ *
+ * Both lists come from one call so membership shows inline. Slack
+ * rejects an entire invite batch if any one person is already in the
+ * channel, so people already in it are listed but not selectable.
+ */
+function Members({
+  channelId,
+  channelName,
+  onClose,
+}: {
+  channelId: string
+  channelName: string
+  onClose: () => void
+}) {
+  const qc = useQueryClient()
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [q, setQ] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState<string | null>(null)
+
+  const members = useQuery({
+    queryKey: ['slack-members', channelId],
+    queryFn: () => fetchSlackMembers(channelId),
+  })
+
+  const invite = useMutation({
+    mutationFn: () => inviteToSlackChannel(channelId, [...picked]),
+    onMutate: () => {
+      setError(null)
+      setDone(null)
+    },
+    onError: (e: Error) => setError(e.message),
+    onSuccess: (r) => {
+      setPicked(new Set())
+      setDone(
+        r.invited.length > 0
+          ? `Added ${r.invited.length} ${r.invited.length === 1 ? 'person' : 'people'}.`
+          : 'Everyone selected was already in the channel.',
+      )
+      members.refetch()
+      qc.invalidateQueries({ queryKey: ['slack'] })
+    },
+  })
+
+  const inChannel = new Set(members.data?.memberIds ?? [])
+  const needle = q.trim().toLowerCase()
+  const people = (members.data?.users ?? []).filter((u: SlackUser) =>
+    needle
+      ? u.name.toLowerCase().includes(needle) ||
+        (u.realName ?? '').toLowerCase().includes(needle) ||
+        (u.email ?? '').toLowerCase().includes(needle)
+      : true,
+  )
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold">
+            People in #{channelName}
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            {inChannel.size} in the channel
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Back to messages"
+          className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="border-b border-border p-2.5">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search people…"
+            className="w-full rounded-lg border border-border bg-background py-1.5 pl-8 pr-2 text-sm outline-none placeholder:text-muted-foreground focus:border-primary"
+          />
+        </div>
+      </div>
+
+      {members.isLoading && <Loading />}
+      {members.data?.error && (
+        <p className="px-4 py-3 text-sm text-destructive">
+          {members.data.error}
+        </p>
+      )}
+
+      <ul className="flex-1 overflow-y-auto">
+        {people.map((u: SlackUser) => {
+          const already = inChannel.has(u.id)
+          const checked = picked.has(u.id)
+          return (
+            <li key={u.id}>
+              <label
+                className={cn(
+                  'flex items-center gap-3 border-b border-border-soft px-4 py-2.5 last:border-0',
+                  already ? 'opacity-60' : 'cursor-pointer hover:bg-surface-muted',
+                )}
+              >
+                <input
+                  type="checkbox"
+                  disabled={already}
+                  checked={checked}
+                  onChange={(e) => {
+                    const next = new Set(picked)
+                    if (e.target.checked) next.add(u.id)
+                    else next.delete(u.id)
+                    setPicked(next)
+                  }}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">
+                    {u.realName ?? u.name}
+                  </span>
+                  <span className="block truncate text-[11px] text-muted-foreground">
+                    {u.email ?? `@${u.name}`}
+                  </span>
+                </span>
+                {already && (
+                  <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    In channel
+                  </span>
+                )}
+              </label>
+            </li>
+          )
+        })}
+        {people.length === 0 && !members.isLoading && (
+          <li className="px-4 py-6 text-center text-sm text-muted-foreground">
+            Nobody matches.
+          </li>
+        )}
+      </ul>
+
+      <div className="border-t border-border p-3">
+        {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
+        {done && <p className="mb-2 text-xs text-emerald-600">{done}</p>}
+        <button
+          type="button"
+          disabled={picked.size === 0 || invite.isPending}
+          onClick={() => invite.mutate()}
+          className="w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+        >
+          {invite.isPending
+            ? 'Adding…'
+            : picked.size === 0
+              ? 'Select people to add'
+              : `Add ${picked.size} to #${channelName}`}
+        </button>
+        <p className="mt-1.5 text-[11px] text-muted-foreground">
+          They are added immediately and will see the channel history.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+
 function Thread({
   channelId,
   parent,
@@ -257,6 +429,7 @@ export default function Slack() {
   const [sendError, setSendError] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
   const [creating, setCreating] = useState(false)
+  const [showMembers, setShowMembers] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
 
   const ws = useQuery({
@@ -438,6 +611,7 @@ export default function Slack() {
                     onClick={() => {
                       setChannelId(ch.id)
                       setSendError(null)
+                      setShowMembers(false)
                     }}
                     className={cn(
                       'flex w-full items-center gap-2 border-b border-border-soft px-3 py-2.5 text-left transition last:border-0',
@@ -511,6 +685,12 @@ export default function Slack() {
                   need a person to invite the bot from Slack.
                 </p>
               </div>
+            ) : showMembers ? (
+              <Members
+                channelId={channelId}
+                channelName={channel.data?.channelName ?? ''}
+                onClose={() => setShowMembers(false)}
+              />
             ) : (
               <>
                 <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
@@ -525,9 +705,14 @@ export default function Slack() {
                     )}
                   </div>
                   <div className="flex flex-shrink-0 items-center gap-2">
-                    <span className="text-[11px] text-muted-foreground">
+                    <button
+                      type="button"
+                      onClick={() => setShowMembers(true)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                    >
+                      <UserPlus className="h-3.5 w-3.5" />
                       {channel.data?.memberCount} members
-                    </span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => channel.refetch()}

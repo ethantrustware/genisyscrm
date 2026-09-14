@@ -2206,3 +2206,49 @@ export async function fetchSlackThread(
     `/slack/thread?${q.toString()}`,
   )
 }
+
+export type SlackUser = {
+  id: string
+  name: string
+  realName: string | null
+  email: string | null
+  isBot: boolean
+}
+
+export type SlackMembers = {
+  users: SlackUser[]
+  memberIds: string[]
+  error?: string | null
+}
+
+export async function fetchSlackMembers(
+  channelId: string,
+): Promise<SlackMembers> {
+  if (!isLive()) return demoSlackMembers()
+  const q = new URLSearchParams({ channelId })
+  return get<SlackMembers>(`/slack/members?${q.toString()}`)
+}
+
+export async function inviteToSlackChannel(
+  channelId: string,
+  userIds: string[],
+): Promise<{ invited: string[]; skipped: string[] }> {
+  return write<{ invited: string[]; skipped: string[] }>(
+    '/slack/members',
+    'POST',
+    { channelId, userIds },
+  )
+}
+
+function demoSlackMembers(): SlackMembers {
+  return {
+    memberIds: ['U1', 'U3'],
+    users: [
+      { id: 'U1', name: 'alex', realName: 'Alex Hyatt', email: 'alex@leadgenisys.com', isBot: false },
+      { id: 'U2', name: 'ethan', realName: 'Ethan', email: 'ethan@leadgenisys.com', isBot: false },
+      { id: 'U3', name: 'mary', realName: 'Mary', email: null, isBot: false },
+      { id: 'U4', name: 'garrett', realName: 'Garrett Curran', email: null, isBot: false },
+    ],
+    error: null,
+  }
+}
