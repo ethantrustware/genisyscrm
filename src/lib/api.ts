@@ -2269,3 +2269,112 @@ export async function inviteExternalToSlackChannel(
     { channelId, email },
   )
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Client onboarding intakes                                                 */
+/* -------------------------------------------------------------------------- */
+
+export type ClientIntake = {
+  id: string
+  receivedAt: string
+  ein: string | null
+  fullName: string | null
+  businessName: string | null
+  businessContact: string | null
+  businessAddress: string | null
+  customerPhone: string | null
+  areaCode: string | null
+  timeZone: string | null
+  leadEmail: string | null
+  cities: string | null
+  website: string | null
+  aboutBusiness: string | null
+  mainServices: string | null
+  promotions: string | null
+  socialLinks: string | null
+  whyChooseYou: string | null
+  brandColors: string | null
+  faqs: string | null
+  raw: Record<string, unknown>
+  status: string
+  clientId: string | null
+}
+
+export type ClientIntakes = {
+  intakes: ClientIntake[]
+  counts: { new: number; total: number }
+}
+
+export async function fetchClientIntakes(): Promise<ClientIntakes> {
+  if (!isLive()) return demoIntakes()
+  return get<ClientIntakes>('/clients/intakes')
+}
+
+export async function setIntakeStatus(
+  id: string,
+  status: 'new' | 'reviewed' | 'archived',
+): Promise<void> {
+  await write('/clients/intakes', 'PATCH', { id, status })
+}
+
+function demoIntakes(): ClientIntakes {
+  const raw = {
+    ein: '12-3456789',
+    fullName: 'Jane Smith',
+    businessName: 'Smith Plumbing',
+    businessContact: 'jane@smithplumbing.com',
+    businessAddress: '456 Main St, Austin, TX',
+    customerPhone: '512-555-0199',
+    areaCode: '512',
+    timeZone: 'Central',
+    leadEmail: 'jane@smithplumbing.com',
+    cities: 'Austin, Round Rock',
+    website: 'N/A',
+    aboutBusiness: 'Family-owned plumber, 15 years.',
+    mainServices: 'Water heaters, drain cleaning',
+    promotions: '10% off first visit',
+    socialLinks: 'facebook.com/smithplumbing',
+    whyChooseYou: 'Fast, honest, local',
+    brandColors: 'Blue and white',
+    faqs: 'Q: Do you offer emergency service? A: Yes, 24/7',
+  }
+  return {
+    counts: { new: 1, total: 2 },
+    intakes: [
+      {
+        id: 'i1',
+        receivedAt: new Date(Date.now() - 2 * 3600_000).toISOString(),
+        ...raw,
+        website: null, // "N/A" is normalised away on ingest
+        raw,
+        status: 'new',
+        clientId: null,
+      },
+      {
+        id: 'i2',
+        receivedAt: new Date(Date.now() - 5 * 86400_000).toISOString(),
+        ein: null,
+        fullName: 'Marcus Hale',
+        businessName: 'Hale Roofing',
+        businessContact: 'marcus@haleroofing.com',
+        businessAddress: '9 Oak Ave, Denver, CO',
+        customerPhone: '303-555-0110',
+        areaCode: '303',
+        timeZone: 'Mountain',
+        leadEmail: 'marcus@haleroofing.com',
+        cities: 'Denver, Aurora',
+        website: 'haleroofing.com',
+        aboutBusiness: 'Roofing and gutters since 2009.',
+        mainServices: 'Roof replacement, storm damage',
+        promotions: null,
+        socialLinks: null,
+        whyChooseYou: 'Insurance claims handled in-house',
+        brandColors: 'Red and grey',
+        faqs: null,
+        raw: {},
+        status: 'reviewed',
+        clientId: null,
+      },
+    ],
+  }
+}

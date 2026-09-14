@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { OnboardingIntakes } from '@/components/onboarding-intakes'
+import { fetchClientIntakes } from '@/lib/api'
 import {
   Archive,
   Building2,
@@ -282,8 +284,16 @@ function ClientDetail({
 }
 
 export default function Clients() {
+  const [tab, setTab] = useState<'clients' | 'onboarding'>('clients')
   const live = useIsLive()
   const queryClient = useQueryClient()
+  // Counts only, so the tab can show a badge without loading every
+  // submission before anyone asks for them.
+  const intakeCounts = useQuery({
+    queryKey: ['client-intakes'],
+    queryFn: fetchClientIntakes,
+    staleTime: 60_000,
+  })
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -414,6 +424,44 @@ export default function Clients() {
         }
       />
 
+      <div className="inline-flex self-start rounded-xl border border-border p-1">
+        {([
+          ['clients', 'Clients'],
+          ['onboarding', 'Onboarding'],
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            className={cn(
+              'inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-sm font-medium transition',
+              tab === key
+                ? 'bg-primary text-white'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {label}
+            {key === 'onboarding' &&
+              (intakeCounts.data?.counts.new ?? 0) > 0 && (
+                <span
+                  className={cn(
+                    'rounded-full px-1.5 text-[10px] font-bold tabular-nums',
+                    tab === key
+                      ? 'bg-white/25 text-white'
+                      : 'bg-amber-500/20 text-amber-600 dark:text-amber-400',
+                  )}
+                >
+                  {intakeCounts.data?.counts.new}
+                </span>
+              )}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'onboarding' && <OnboardingIntakes />}
+
+      {tab === 'clients' && (
+        <>
       {error && (
         <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
@@ -496,6 +544,8 @@ export default function Clients() {
             </div>
           )}
         </div>
+      )}
+      </>
       )}
     </div>
   )
