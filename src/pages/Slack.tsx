@@ -9,6 +9,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Mail,
   Send,
   UserPlus,
   X,
@@ -19,6 +20,7 @@ import {
   fetchSlackMembers,
   fetchSlackThread,
   fetchSlackWorkspace,
+  inviteExternalToSlackChannel,
   inviteToSlackChannel,
   joinSlackChannel,
   postSlackMessage,
@@ -198,6 +200,79 @@ function CreateChannel({
 /* -------------------------------------------------------------------------- */
 
 /**
+ * Invite someone outside the workspace, by email.
+ *
+ * This is Slack Connect, not a workspace invite — it shares one channel
+ * with them and they stay on their own Slack. Adding a real member by
+ * email requires admin.users.invite, which Slack limits to Enterprise
+ * Grid, so that is stated rather than offered and left to fail.
+ */
+function ExternalInvite({
+  channelId,
+  channelName,
+}: {
+  channelId: string
+  channelName: string
+}) {
+  const [email, setEmail] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState<string | null>(null)
+
+  const invite = useMutation({
+    mutationFn: () => inviteExternalToSlackChannel(channelId, email.trim()),
+    onMutate: () => {
+      setError(null)
+      setDone(null)
+    },
+    onError: (e: Error) => setError(e.message),
+    onSuccess: (r) => {
+      setDone(`Invite sent to ${r.email}.`)
+      setEmail('')
+    },
+  })
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center gap-1.5">
+        <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs font-semibold">Invite someone outside</span>
+      </div>
+      <div className="flex gap-2">
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && email.trim() && !invite.isPending) {
+              invite.mutate()
+            }
+          }}
+          placeholder="them@theircompany.com"
+          className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus:border-primary"
+        />
+        <button
+          type="button"
+          disabled={!email.trim() || invite.isPending}
+          onClick={() => invite.mutate()}
+          className="flex-shrink-0 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold transition hover:bg-muted disabled:opacity-50"
+        >
+          {invite.isPending ? 'Sending…' : 'Invite'}
+        </button>
+      </div>
+      {error && <p className="mt-1.5 text-[11px] text-destructive">{error}</p>}
+      {done && <p className="mt-1.5 text-[11px] text-emerald-600">{done}</p>}
+      <p className="mt-1.5 text-[11px] text-muted-foreground">
+        Slack Connect: shares #{channelName} with them. They stay on their own
+        Slack and do not become a member of this workspace — that has to be
+        done from Slack itself.
+      </p>
+    </div>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+
+/**
  * Members panel — who is in the channel, and who can be added.
  *
  * Both lists come from one call so membership shows inline. Slack
@@ -339,6 +414,10 @@ function Members({
           </li>
         )}
       </ul>
+
+      <div className="border-t border-border p-3">
+        <ExternalInvite channelId={channelId} channelName={channelName} />
+      </div>
 
       <div className="border-t border-border p-3">
         {error && <p className="mb-2 text-xs text-destructive">{error}</p>}

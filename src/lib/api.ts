@@ -2252,3 +2252,20 @@ function demoSlackMembers(): SlackMembers {
     error: null,
   }
 }
+
+/**
+ * Slack Connect invite — shares one channel with someone outside the
+ * workspace. Not a workspace invite: they stay on their own Slack and
+ * never become a member here. Adding a real member by email needs an
+ * Enterprise Grid API that this plan does not have.
+ */
+export async function inviteExternalToSlackChannel(
+  channelId: string,
+  email: string,
+): Promise<{ email: string; inviteId: string | null }> {
+  return write<{ email: string; inviteId: string | null }>(
+    '/slack/invite-external',
+    'POST',
+    { channelId, email },
+  )
+}
