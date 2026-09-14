@@ -2108,17 +2108,49 @@ export async function fetchSlackChannel(
   channelId: string,
   limit = 50,
 ): Promise<SlackChannelView> {
-  if (!isLive()) {
-    return {
-      messages: [],
-      channelName: 'demo',
-      channelTopic: '',
-      memberCount: 0,
-      userMap: {},
-    }
-  }
+  if (!isLive()) return demoSlackChannel()
   const q = new URLSearchParams({ channelId, limit: String(limit) })
   return get<SlackChannelView>(`/slack/messages?${q.toString()}`)
+}
+
+/**
+ * Demo conversation.
+ *
+ * Deliberately spans two days, includes a run of consecutive messages
+ * from one person and a threaded reply, so the day separators, author
+ * grouping and thread control are all visible without a live workspace.
+ */
+function demoSlackChannel(): SlackChannelView {
+  const h = (n: number) => new Date(Date.now() - n * 3600_000).toISOString()
+  const msg = (
+    ts: string,
+    userId: string,
+    userName: string,
+    text: string,
+    replyCount?: number,
+  ): SlackMessage => ({
+    ts,
+    userId,
+    userName,
+    text,
+    timestamp: ts,
+    ...(replyCount ? { replyCount } : {}),
+  })
+
+  return {
+    channelName: 'genisys-alerts',
+    channelTopic: 'Automated alerts from the Hub',
+    memberCount: 6,
+    userMap: { U1: 'Alex Hyatt', U2: 'Ethan', U3: 'genisys-hub' },
+    messages: [
+      msg(h(30), 'U3', 'genisys-hub', 'New booking: Utah Flatwork Concrete — Team 4'),
+      msg(h(29), 'U2', 'Ethan', 'Nice, that one came off the SMS pipeline'),
+      msg(h(28.9), 'U2', 'Ethan', 'Second one this week from that list', 2),
+      msg(h(6), 'U1', 'Alex Hyatt', 'Rotated the Slack token, alerts should flow again'),
+      msg(h(5.9), 'U1', 'Alex Hyatt', 'Confirmed working'),
+      msg(h(2), 'U3', 'genisys-hub', 'Whop order: Marcus Hale — $297 renewal'),
+    ],
+  }
 }
 
 export async function postSlackMessage(
@@ -2150,4 +2182,27 @@ function demoSlack(): SlackWorkspace {
     ],
     channelsError: null,
   }
+}
+
+export async function createSlackChannel(input: {
+  name: string
+  topic?: string
+  isPrivate: boolean
+}): Promise<{ channelId: string; channelName: string }> {
+  return write<{ channelId: string; channelName: string }>(
+    '/slack/channels',
+    'POST',
+    input,
+  )
+}
+
+export async function fetchSlackThread(
+  channelId: string,
+  ts: string,
+): Promise<{ replies: SlackMessage[]; error?: string }> {
+  if (!isLive()) return { replies: [] }
+  const q = new URLSearchParams({ channelId, ts })
+  return get<{ replies: SlackMessage[]; error?: string }>(
+    `/slack/thread?${q.toString()}`,
+  )
 }

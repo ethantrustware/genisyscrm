@@ -1,15 +1,21 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
   CheckCircle2,
   Hash,
   Lock,
+  MessageSquare,
+  Plus,
   RefreshCw,
+  Search,
   Send,
+  X,
 } from 'lucide-react'
 import {
+  createSlackChannel,
   fetchSlackChannel,
+  fetchSlackThread,
   fetchSlackWorkspace,
   joinSlackChannel,
   postSlackMessage,
@@ -23,107 +29,235 @@ import { cn } from '@/lib/utils'
  * Slack — manage the workspace through the bot.
  *
  * Identity is shown first and permanently. Slack reports a revoked app,
- * a missing scope and a channel the bot simply isn't in with errors that
- * all read the same from the outside, and `account_inactive` — the one
- * that took this integration down — is indistinguishable from a typo in
- * the token unless something checks the token on its own.
+ * a missing scope and a channel the bot isn't in with errors that all
+ * read the same from outside, and `account_inactive` — the one that took
+ * this integration down — is indistinguishable from a typo'd token
+ * unless something checks the token on its own.
  *
- * The other recurring trap is membership: scopes grant capability, not
- * access. A correctly-scoped bot still cannot read or post in a channel
- * it has not joined, so joining is a button here rather than something
- * to go and do in Slack.
+ * Reading is built to be skimmed rather than parsed: newest at the
+ * bottom like Slack itself, day separators, consecutive messages from
+ * one person collapsed into a block, and threads opened in place instead
+ * of sending anyone back to the Slack app.
  */
 
-const timeFmt = new Intl.DateTimeFormat(undefined, {
-  month: 'short',
-  day: 'numeric',
+const timeOnly = new Intl.DateTimeFormat(undefined, {
   hour: 'numeric',
   minute: '2-digit',
 })
 
-/** Resolve <@U123> mentions to names so messages read as they do in Slack. */
+/** Day heading — relative for the recent ones, dated for the rest. */
+function dayHeading(d: Date): string {
+  const start = (x: Date) => {
+    const c = new Date(x)
+    c.setHours(0, 0, 0, 0)
+    return c.getTime()
+  }
+  const diff = Math.round((start(d) - start(new Date())) / 86400_000)
+  if (diff === 0) return 'Today'
+  if (diff === -1) return 'Yesterday'
+  return d.toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+const dayKey = (iso: string) => new Date(iso).toDateString()
+
+/** Resolve <@U123> mentions so messages read as they do in Slack. */
 function renderText(text: string, userMap: Record<string, string>) {
-  const parts = text.split(/(<@[A-Z0-9]+>)/g)
-  return parts.map((p, i) => {
+  return text.split(/(<@[A-Z0-9]+>)/g).map((p, i) => {
     const m = p.match(/^<@([A-Z0-9]+)>$/)
     if (!m) return <span key={i}>{p}</span>
-    const name = userMap[m[1]] ?? m[1]
     return (
       <span key={i} className="rounded bg-primary-soft px-1 text-primary">
-        @{name}
+        @{userMap[m[1]] ?? m[1]}
       </span>
     )
   })
 }
 
-function ChannelRow({
-  ch,
-  active,
-  onSelect,
-  onJoin,
-  joining,
+/* -------------------------------------------------------------------------- */
+
+function CreateChannel({
+  onClose,
+  onCreated,
 }: {
-  ch: SlackChannel
-  active: boolean
-  onSelect: () => void
-  onJoin: () => void
-  joining: boolean
+  onClose: () => void
+  onCreated: (id: string) => void
 }) {
+  const [name, setName] = useState('')
+  const [topic, setTopic] = useState('')
+  const [isPrivate, setIsPrivate] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Slack's own rule: lowercase, no spaces or dots, 80 max. Showing the
+  // result up front beats having Slack silently rename it.
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80)
+
+  const create = useMutation({
+    mutationFn: () => createSlackChannel({ name: slug, topic, isPrivate }),
+    onError: (e: Error) => setError(e.message),
+    onSuccess: (r) => {
+      onCreated(r.channelId)
+      onClose()
+    },
+  })
+
   return (
-    <li>
-      <button
-        type="button"
-        onClick={onSelect}
-        className={cn(
-          'flex w-full items-center gap-2 border-b border-border-soft px-4 py-2.5 text-left transition last:border-0',
-          active ? 'bg-primary-soft' : 'hover:bg-surface-muted',
-        )}
-      >
-        {ch.isPrivate ? (
-          <Lock className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
-        ) : (
-          <Hash className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
-        )}
-        <span
-          className={cn(
-            'min-w-0 flex-1 truncate text-sm',
-            active ? 'font-semibold text-primary' : 'text-foreground',
-          )}
+    <div className="rounded-2xl border border-border bg-card p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-sm font-semibold">New channel</h2>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="rounded-lg p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
         >
-          {ch.name}
-        </span>
-        <span className="flex-shrink-0 text-[11px] tabular-nums text-muted-foreground">
-          {ch.memberCount}
-        </span>
-        {ch.isMember === false && (
-          <span
-            role="button"
-            tabIndex={0}
-            onClick={(e) => {
-              e.stopPropagation()
-              onJoin()
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.stopPropagation()
-                onJoin()
-              }
-            }}
-            className="flex-shrink-0 rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground transition hover:bg-muted hover:text-foreground"
-          >
-            {joining ? '…' : 'Join'}
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-semibold">Name</span>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="client-acme-roofing"
+            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:border-primary"
+          />
+          {name && (
+            <span className="text-[11px] text-muted-foreground">
+              Slack will call it <span className="font-mono">#{slug}</span>
+            </span>
+          )}
+        </label>
+
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-semibold">Topic (optional)</span>
+          <input
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            placeholder="What this channel is for"
+            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus:border-primary"
+          />
+        </label>
+
+        <label className="flex items-start gap-2.5">
+          <input
+            type="checkbox"
+            checked={isPrivate}
+            onChange={(e) => setIsPrivate(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span className="text-xs">
+            <span className="font-semibold">Private</span>
+            <span className="block text-muted-foreground">
+              Only invited people can see it. This cannot be changed back to
+              public later from here.
+            </span>
           </span>
-        )}
-      </button>
-    </li>
+        </label>
+
+        {error && <p className="text-sm text-destructive">{error}</p>}
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={!slug || create.isPending}
+            onClick={() => {
+              setError(null)
+              create.mutate()
+            }}
+            className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+          >
+            {create.isPending ? 'Creating…' : 'Create channel'}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-border px-4 py-2 text-sm font-medium transition hover:bg-muted"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
+
+/* -------------------------------------------------------------------------- */
+
+function Thread({
+  channelId,
+  parent,
+  userMap,
+}: {
+  channelId: string
+  parent: SlackMessage
+  userMap: Record<string, string>
+}) {
+  const [open, setOpen] = useState(false)
+  const q = useQuery({
+    queryKey: ['slack-thread', channelId, parent.ts],
+    queryFn: () => fetchSlackThread(channelId, parent.ts),
+    enabled: open,
+  })
+
+  const count = parent.replyCount ?? 0
+  if (count === 0) return null
+
+  return (
+    <div className="mt-1">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+      >
+        <MessageSquare className="h-3 w-3" />
+        {open ? 'Hide' : `${count} repl${count === 1 ? 'y' : 'ies'}`}
+      </button>
+
+      {open && (
+        <div className="mt-1.5 space-y-1.5 border-l-2 border-border pl-3">
+          {q.isLoading && (
+            <p className="text-[11px] text-muted-foreground">Loading…</p>
+          )}
+          {q.data?.error && (
+            <p className="text-[11px] text-destructive">{q.data.error}</p>
+          )}
+          {(q.data?.replies ?? []).map((r) => (
+            <div key={r.ts} className="text-sm">
+              <span className="mr-2 text-xs font-semibold">{r.userName}</span>
+              <span className="text-[11px] text-muted-foreground">
+                {timeOnly.format(new Date(r.timestamp))}
+              </span>
+              <p className="whitespace-pre-wrap break-words text-foreground/90">
+                {renderText(r.text, userMap)}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
 
 export default function Slack() {
   const qc = useQueryClient()
   const [channelId, setChannelId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [sendError, setSendError] = useState<string | null>(null)
+  const [filter, setFilter] = useState('')
+  const [creating, setCreating] = useState(false)
+  const bottomRef = useRef<HTMLDivElement | null>(null)
 
   const ws = useQuery({
     queryKey: ['slack'],
@@ -134,10 +268,18 @@ export default function Slack() {
 
   const channel = useQuery({
     queryKey: ['slack-channel', channelId],
-    queryFn: () => fetchSlackChannel(channelId!),
+    queryFn: () => fetchSlackChannel(channelId!, 100),
     enabled: Boolean(channelId),
     refetchOnWindowFocus: false,
   })
+
+  // Newest at the bottom, like Slack — so land there rather than making
+  // someone scroll down to find the current conversation.
+  useEffect(() => {
+    if (channel.data?.messages?.length) {
+      bottomRef.current?.scrollIntoView({ block: 'end' })
+    }
+  }, [channel.data?.messages, channelId])
 
   const join = useMutation({
     mutationFn: (id: string) => joinSlackChannel(id),
@@ -156,6 +298,38 @@ export default function Slack() {
 
   const identity = ws.data?.identity
 
+  const channels = useMemo(() => {
+    const all = ws.data?.channels ?? []
+    const q = filter.trim().toLowerCase()
+    return q ? all.filter((c) => c.name.toLowerCase().includes(q)) : all
+  }, [ws.data?.channels, filter])
+
+  /** Group into day blocks, then collapse runs from the same author. */
+  const grouped = useMemo(() => {
+    const msgs = channel.data?.messages ?? []
+    const days: Array<{ day: string; blocks: SlackMessage[][] }> = []
+    for (const m of msgs) {
+      const key = dayKey(m.timestamp)
+      let day = days[days.length - 1]
+      if (!day || day.day !== key) {
+        day = { day: key, blocks: [] }
+        days.push(day)
+      }
+      const last = day.blocks[day.blocks.length - 1]
+      const sameAuthor = last && last[0].userId === m.userId
+      // Five minutes is roughly where a reply stops feeling like part of
+      // the same thought.
+      const closeInTime =
+        last &&
+        new Date(m.timestamp).getTime() -
+          new Date(last[last.length - 1].timestamp).getTime() <
+          5 * 60_000
+      if (sameAuthor && closeInTime) last.push(m)
+      else day.blocks.push([m])
+    }
+    return days
+  }, [channel.data?.messages])
+
   return (
     <div className="flex w-full flex-col gap-4">
       <PageHeader
@@ -163,24 +337,35 @@ export default function Slack() {
         subtitle="Read and post to the workspace through the Genisys bot."
         breadcrumbs={[{ label: 'Genisys' }, { label: 'Slack' }]}
         actions={
-          <button
-            type="button"
-            onClick={() => ws.refetch()}
-            disabled={ws.isFetching}
-            aria-label="Refresh"
-            className="rounded-lg border border-border p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
-          >
-            <RefreshCw
-              className={cn('h-4 w-4', ws.isFetching && 'animate-spin')}
-            />
-          </button>
+          <div className="flex items-center gap-2">
+            {identity?.ok && (
+              <button
+                type="button"
+                onClick={() => setCreating(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+              >
+                <Plus className="h-4 w-4" />
+                New channel
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => ws.refetch()}
+              disabled={ws.isFetching}
+              aria-label="Refresh"
+              className="rounded-lg border border-border p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+            >
+              <RefreshCw
+                className={cn('h-4 w-4', ws.isFetching && 'animate-spin')}
+              />
+            </button>
+          </div>
         }
       />
 
       {ws.isLoading && <Loading />}
       {ws.isError && <ErrorCard message={(ws.error as Error).message} />}
 
-      {/* Connection — the first thing to know after swapping a token */}
       {identity && (
         <div
           className={cn(
@@ -220,32 +405,97 @@ export default function Slack() {
         <ErrorCard message={`Channels: ${ws.data.channelsError}`} />
       )}
 
+      {creating && (
+        <CreateChannel
+          onClose={() => setCreating(false)}
+          onCreated={(id) => {
+            qc.invalidateQueries({ queryKey: ['slack'] })
+            setChannelId(id)
+          }}
+        />
+      )}
+
       {identity?.ok && (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,300px)_1fr]">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,290px)_1fr]">
           {/* Channels */}
-          <div className="h-[calc(100vh-19rem)] min-h-[24rem] overflow-y-auto rounded-2xl border border-border bg-card">
-            <h2 className="sticky top-0 border-b border-border bg-card px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Channels ({ws.data?.channels.length ?? 0})
-            </h2>
-            <ul>
-              {(ws.data?.channels ?? []).map((ch) => (
-                <ChannelRow
-                  key={ch.id}
-                  ch={ch}
-                  active={ch.id === channelId}
-                  onSelect={() => {
-                    setChannelId(ch.id)
-                    setSendError(null)
-                  }}
-                  onJoin={() => join.mutate(ch.id)}
-                  joining={join.isPending && join.variables === ch.id}
+          <div className="flex h-[calc(100vh-19rem)] min-h-[26rem] flex-col overflow-hidden rounded-2xl border border-border bg-card">
+            <div className="border-b border-border p-2.5">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  placeholder={`Filter ${ws.data?.channels.length ?? 0} channels…`}
+                  className="w-full rounded-lg border border-border bg-background py-1.5 pl-8 pr-2 text-sm outline-none placeholder:text-muted-foreground focus:border-primary"
                 />
+              </div>
+            </div>
+            <ul className="flex-1 overflow-y-auto">
+              {channels.map((ch: SlackChannel) => (
+                <li key={ch.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setChannelId(ch.id)
+                      setSendError(null)
+                    }}
+                    className={cn(
+                      'flex w-full items-center gap-2 border-b border-border-soft px-3 py-2.5 text-left transition last:border-0',
+                      ch.id === channelId
+                        ? 'bg-primary-soft'
+                        : 'hover:bg-surface-muted',
+                    )}
+                  >
+                    {ch.isPrivate ? (
+                      <Lock className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                    ) : (
+                      <Hash className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                    )}
+                    <span
+                      className={cn(
+                        'min-w-0 flex-1 truncate text-sm',
+                        ch.id === channelId && 'font-semibold text-primary',
+                      )}
+                    >
+                      {ch.name}
+                    </span>
+                    <span className="flex-shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                      {ch.memberCount}
+                    </span>
+                    {ch.isMember === false && (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          join.mutate(ch.id)
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.stopPropagation()
+                            join.mutate(ch.id)
+                          }
+                        }}
+                        className="flex-shrink-0 rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                      >
+                        {join.isPending && join.variables === ch.id
+                          ? '…'
+                          : 'Join'}
+                      </span>
+                    )}
+                  </button>
+                </li>
               ))}
+              {channels.length === 0 && (
+                <li className="px-3 py-6 text-center text-sm text-muted-foreground">
+                  No channels match.
+                </li>
+              )}
             </ul>
           </div>
 
           {/* Messages */}
-          <div className="flex h-[calc(100vh-19rem)] min-h-[24rem] flex-col overflow-hidden rounded-2xl border border-border bg-card">
+          <div className="flex h-[calc(100vh-19rem)] min-h-[26rem] flex-col overflow-hidden rounded-2xl border border-border bg-card">
             {!channelId ? (
               <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-muted-foreground">
                 Pick a channel to read it.
@@ -254,54 +504,100 @@ export default function Slack() {
               <Loading />
             ) : channel.data?.error ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
-                <p className="text-sm text-destructive">
-                  {channel.data.error}
-                </p>
+                <p className="text-sm text-destructive">{channel.data.error}</p>
                 <p className="max-w-sm text-xs text-muted-foreground">
                   If this says the bot is not in the channel, use Join in the
-                  list — scopes alone do not grant membership. Private
-                  channels need a person to invite the bot from Slack.
+                  list — scopes alone do not grant membership. Private channels
+                  need a person to invite the bot from Slack.
                 </p>
               </div>
             ) : (
               <>
-                <div className="border-b border-border px-4 py-2.5">
-                  <p className="text-sm font-semibold">
-                    #{channel.data?.channelName}
-                  </p>
-                  {channel.data?.channelTopic && (
-                    <p className="truncate text-xs text-muted-foreground">
-                      {channel.data.channelTopic}
+                <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">
+                      #{channel.data?.channelName}
                     </p>
-                  )}
+                    {channel.data?.channelTopic && (
+                      <p className="truncate text-xs text-muted-foreground">
+                        {channel.data.channelTopic}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-shrink-0 items-center gap-2">
+                    <span className="text-[11px] text-muted-foreground">
+                      {channel.data?.memberCount} members
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => channel.refetch()}
+                      disabled={channel.isFetching}
+                      aria-label="Refresh messages"
+                      className="rounded-lg border border-border p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+                    >
+                      <RefreshCw
+                        className={cn(
+                          'h-3.5 w-3.5',
+                          channel.isFetching && 'animate-spin',
+                        )}
+                      />
+                    </button>
+                  </div>
                 </div>
 
-                <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-                  {(channel.data?.messages ?? []).length === 0 ? (
+                <div className="flex-1 overflow-y-auto px-4 py-4">
+                  {grouped.length === 0 ? (
                     <p className="text-center text-sm text-muted-foreground">
                       Nothing here yet.
                     </p>
                   ) : (
-                    (channel.data?.messages ?? []).map((m: SlackMessage) => (
-                      <div key={m.ts} className="text-sm">
-                        <div className="flex items-baseline gap-2">
-                          <span className="font-semibold">{m.userName}</span>
-                          <span className="text-[11px] text-muted-foreground">
-                            {timeFmt.format(new Date(m.timestamp))}
+                    grouped.map((day) => (
+                      <div key={day.day}>
+                        <div className="my-3 flex items-center gap-3">
+                          <div className="h-px flex-1 bg-border" />
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            {dayHeading(new Date(day.day))}
                           </span>
-                          {(m.replyCount ?? 0) > 0 && (
-                            <span className="text-[11px] text-primary">
-                              {m.replyCount} repl
-                              {m.replyCount === 1 ? 'y' : 'ies'}
-                            </span>
-                          )}
+                          <div className="h-px flex-1 bg-border" />
                         </div>
-                        <p className="whitespace-pre-wrap break-words text-foreground/90">
-                          {renderText(m.text, channel.data?.userMap ?? {})}
-                        </p>
+
+                        <div className="space-y-3">
+                          {day.blocks.map((block) => (
+                            <div key={block[0].ts} className="text-sm">
+                              <div className="flex items-baseline gap-2">
+                                <span className="font-semibold">
+                                  {block[0].userName}
+                                </span>
+                                <span className="text-[11px] text-muted-foreground">
+                                  {timeOnly.format(
+                                    new Date(block[0].timestamp),
+                                  )}
+                                </span>
+                              </div>
+                              {block.map((m) => (
+                                <div key={m.ts}>
+                                  <p className="whitespace-pre-wrap break-words text-foreground/90">
+                                    {renderText(
+                                      m.text,
+                                      channel.data?.userMap ?? {},
+                                    )}
+                                  </p>
+                                  {channelId && (
+                                    <Thread
+                                      channelId={channelId}
+                                      parent={m}
+                                      userMap={channel.data?.userMap ?? {}}
+                                    />
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ))
                   )}
+                  <div ref={bottomRef} />
                 </div>
 
                 <div className="border-t border-border p-3">
@@ -313,7 +609,7 @@ export default function Slack() {
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
                       onKeyDown={(e) => {
-                        // Enter sends, Shift+Enter is a newline — the same
+                        // Enter sends, Shift+Enter is a newline — the
                         // reflex Slack itself trains.
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault()
